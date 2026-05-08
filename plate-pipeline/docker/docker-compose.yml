@@ -1,0 +1,155 @@
+# Docker Compose — Full Stack Orchestration
+#
+# Services:
+#   - ingestion-api    : FastAPI ingestion + API
+#   - celery-worker    : Celery inference workers (scalable)
+#   - rabbitmq         : Message broker
+#   - redis            : Cache + state + result backend
+#   - prometheus       : Metrics collection
+#   - grafana          : Metrics visualization
+#
+# Usage:
+#   docker-compose up --build
+#   docker-compose up --scale celery-worker=5
+
+services:
+  # INGESTION API
+  ingestion-api:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.api
+    container_name: plate-api
+    ports:
+      - "8000:8000"
+    volumes:
+      - ../config:/app/config:ro
+      - models:/models
+      - uploads:/tmp/plate-pipeline/uploads
+      - frames:/tmp/plate-pipeline/frames
+    environment:
+      - PLATE_PIPELINE_CONFIG=/app/config/config.yaml
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - plate-net
+    restart: unless-stopped
+
+  # CELERY WORKER (scalable)
+  celery-worker:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile.worker
+    volumes:
+      - ../config:/app/config:ro
+      - models:/models
+      - frames:/tmp/plate-pipeline/frames
+    environment:
+      - PLATE_PIPELINE_CONFIG=/app/config/config.yaml
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    depends_on:
+      rabbitmq:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - plate-net
+    restart: unless-stopped
+    deploy:
+      replicas: 2
+      resources:
+        limits:
+          memory: 4G
+
+  # RABBITMQ
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    container_name: plate-rabbitmq
+    ports:
+      - "5672:5672"
+      - "15672:15672"
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    volumes:
+      - rabbitmq-data:/var/lib/rabbitmq
+    networks:
+      - plate-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "-q", "check_running"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  # REDIS
+  redis:
+    image: redis:7-alpine
+    container_name: plate-redis
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis-data:/data
+    command: redis-server --appendonly yes --maxmemory 512mb --maxmemory-policy allkeys-lru
+    networks:
+      - plate-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 3s
+      retries: 5
+
+  # PROMETHEUS
+  prometheus:
+    image: prom/prometheus:latest
+    container_name: plate-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - prometheus-data:/prometheus
+    command:
+      - "--config.file=/etc/prometheus/prometheus.yml"
+      - "--storage.tsdb.retention.time=7d"
+    networks:
+      - plate-net
+    restart: unless-stopped
+    depends_on:
+      - ingestion-api
+
+  # GRAFANA
+  grafana:
+    image: grafana/grafana:latest
+    container_name: plate-grafana
+    ports:
+      - "3000:3000"
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=admin
+      - GF_USERS_ALLOW_SIGN_UP=false
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - plate-net
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+
+# VOLUMES
+volumes:
+  models:
+  uploads:
+  frames:
+  rabbitmq-data:
+  redis-data:
+  prometheus-data:
+  grafana-data:
+
+# NETWORKS
+networks:
+  plate-net:
+    driver: bridge
