@@ -51,6 +51,7 @@ class InferenceRouter:
     def __init__(self, config: PipelineConfig, registry: ModelRegistry):
         self._config = config
         self._registry = registry
+        self._config_debug = config.debug
 
         # Initialize circuit breaker from config
         cb_config = config.llm.circuit_breaker
@@ -69,8 +70,8 @@ class InferenceRouter:
 
     def _build_pipelines(self) -> dict[InferenceMode, list[Stage]]:
         """Build pipeline stages for each inference mode."""
-        detection = DetectionStage(self._registry)
-        ocr = OCRStage(self._registry)
+        detection = DetectionStage(self._registry, self._config)
+        ocr = OCRStage(self._registry, self._config, self._config_debug)
         llm_correction = LLMCorrectionStage(
             self._registry, self._circuit_breaker, self._config
         )

@@ -47,6 +47,8 @@ from services.config.models import (
     VideoIngestionConfig,
     WorkersConfig,
     YOLOModelConfig,
+    PreprocessingConfig,
+    DebugConfig,
 )
 
 # Loader
@@ -91,6 +93,8 @@ __all__ = [
     "VideoIngestionConfig",
     "WorkersConfig",
     "YOLOModelConfig",
+    "PreprocessingConfig",
+    "DebugConfig",
     # Loader
     "load_config",
     "reload_config",

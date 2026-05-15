@@ -18,6 +18,7 @@ from PIL import Image
 from services.config import PipelineConfig
 from services.inference.circuit_breaker import CircuitBreaker
 from services.models import ModelRegistry
+from services.models.preprocessing import crop_resize_plate, preprocess_for_ocr
 
 logger = logging.getLogger(__name__)
 
@@ -52,8 +53,9 @@ class Stage(ABC):
 class DetectionStage(Stage):
     """YOLO license plate detection stage."""
 
-    def __init__(self, registry: ModelRegistry):
+    def __init__(self, registry: ModelRegistry, config: PipelineConfig):
         self._detector = registry.detector
+        self._config = config
 
     def process(self, data: dict[str, Any]) -> dict[str, Any]:
         image = data.get("image")
@@ -72,6 +74,11 @@ class DetectionStage(Stage):
             x1, y1, x2, y2 = det["bbox"]
             crop = image[y1:y2, x1:x2]
             if crop.size > 0:
+                if self._config.preprocessing.enabled:
+                    crop = crop_resize_plate(
+                        crop,
+                        min_width = self._config.preprocessing.min_plate_width,
+                    )
                 crops.append({
                     "image": crop,
                     "bbox": det["bbox"],
@@ -89,8 +96,11 @@ class DetectionStage(Stage):
 class OCRStage(Stage):
     """OCR text extraction stage."""
 
-    def __init__(self, registry: ModelRegistry):
+    def __init__(self, registry: ModelRegistry, config: PipelineConfig, config_debug: DebugConfig):
+        # Keep a single source of config; debug settings live on config.debug
         self._ocr = registry.ocr
+        self._config = config
+        self._config_debug = config_debug
 
     def process(self, data: dict[str, Any]) -> dict[str, Any]:
         crops = data.get("plate_crops", [])
@@ -102,7 +112,18 @@ class OCRStage(Stage):
         ocr_results = []
 
         for crop_info in crops:
-            texts = self._ocr.read_text(crop_info["image"])
+            crop_img = crop_info['image']
+            # Optionally preprocess the crop for better OCR results
+            if self._config.preprocessing.enabled and self._config.preprocessing.enhance_image_ocr:
+                crop_img = preprocess_for_ocr(
+                    crop_img,
+                    save_debug=self._config.debug.save_intermediate_images,
+                    debug_dir=self._config_debug.debug.output_dir,
+                    debug_prefix=data.get('frame_id', 'unknown'),
+                )
+
+            # Pass the (possibly preprocessed) image to the OCR reader
+            texts = self._ocr.read_text(crop_img)
             combined_text = " ".join(t["text"] for t in texts).strip()
             max_conf = max((t["confidence"] for t in texts), default=0.0)
 

@@ -28,6 +28,19 @@ decoder:
   timeout_seconds: 300
 
 # ---------------------------------------------------------------------------
+# PREPROCESSING
+# ---------------------------------------------------------------------------
+preprocessing: 
+  enabled: false
+  min_plate_width: 100
+  enhance_image_ocr: true
+
+#Debug preprocessed frames
+debug:
+  save_intermediate_images: false
+  output_dir: /tmp/plate-pipeline/debug
+  
+# ---------------------------------------------------------------------------
 # FRAME SAMPLER
 # ---------------------------------------------------------------------------
 frame_sampler:

@@ -5,7 +5,6 @@ from typing import Optional
 import cv2
 import numpy as np
 
-
 def crop_resize_plate (plate_img: np.ndarray, min_width: int = 100) -> np.ndarray:
         # Upscaling
         h, w = plate_img.shape[:2]

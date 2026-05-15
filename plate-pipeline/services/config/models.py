@@ -126,6 +126,15 @@ class OCRConfig(BaseModel):
     easyocr: EasyOCRSettings = Field(default_factory=EasyOCRSettings)
     paddleocr: PaddleOCRSettings = Field(default_factory=PaddleOCRSettings)
 
+class PreprocessingConfig(BaseModel):
+    enabled: bool = True
+    min_plate_width: int = Field(default=100, ge=1)
+    enhance_image_ocr: bool = True
+
+class DebugConfig(BaseModel):
+    save_intermediate_images: bool = False
+    output_dir: str = "tmp/plate-pipeline/debug"
+
 
 # LLM
 
@@ -260,6 +269,8 @@ class PipelineConfig(BaseModel):
     inference: InferenceConfig = Field(default_factory=InferenceConfig)
     model_registry: ModelRegistryConfig = Field(default_factory=ModelRegistryConfig)
     ocr: OCRConfig = Field(default_factory=OCRConfig)
+    preprocessing: PreprocessingConfig = Field(default_factory=PreprocessingConfig)
+    debug: DebugConfig = Field(default_factory=DebugConfig)
     llm: LLMConfig = Field(default_factory=LLMConfig)
     dspy: DSPyConfig = Field(default_factory=DSPyConfig)
     queue: QueueConfig = Field(default_factory=QueueConfig)
