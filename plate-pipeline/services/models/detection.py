@@ -80,6 +80,9 @@ class YOLODetector(DetectionModel):
                     "class_id": int(cls),
                     "class_name": "license_plate",
                 })
+                
+        if self._config.selection_policy == "best" and detections:
+            detections = [max(detections, key=lambda d: d["confidence"])]
 
         logger.debug(f"YOLO detected {len(detections)} plates")
         return detections

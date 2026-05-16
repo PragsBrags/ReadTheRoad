@@ -104,6 +104,8 @@ class YOLOModelConfig(BaseModel):
     iou_threshold: float = Field(default=0.45, ge=0, le=1)
     device: DeviceType = DeviceType.CPU
     imgsz: int = Field(default=640, ge=32)
+    # Matches config.yaml/config.local.yaml key: 'selection_policy'
+    selection_policy: str = "all"
 
 
 class ModelRegistryConfig(BaseModel):

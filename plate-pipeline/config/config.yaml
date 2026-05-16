@@ -90,6 +90,7 @@ model_registry:
     iou_threshold: 0.1
     device: mps # cpu | cuda | mps
     imgsz: 640
+    selection_policy: all # all | best
 
 # ---------------------------------------------------------------------------
 # OCR CONFIGURATION

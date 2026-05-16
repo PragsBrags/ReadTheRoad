@@ -5,6 +5,7 @@ OCR Engines — EasyOCR and PaddleOCR implementations.
 from __future__ import annotations
 
 import logging
+import os
 from typing import Any
 
 import numpy as np
@@ -81,6 +82,8 @@ class PaddleOCRReader(OCRModel):
 
     def load(self) -> None:
         """Initialize PaddleOCR reader."""
+        os.environ.setdefault("PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK", "True")
+
         try:
             from paddleocr import PaddleOCR
             self._reader = PaddleOCR(
