@@ -26,6 +26,7 @@ class SamplerStrategy(str, Enum):
     MOTION = "motion"
     HYBRID = "hybrid"
     NYQUIST = "nyquist"
+    MOTION_SHARPNESS = "motion_sharpness"
 
 
 class OCREngine(str, Enum):

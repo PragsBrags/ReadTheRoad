@@ -20,6 +20,7 @@ from typing import Optional
 
 import numpy as np
 from PIL import Image
+import cv2
 
 from services.config import FrameSamplerConfig, SamplerStrategy
 from services.decoder import FrameData
@@ -68,6 +69,12 @@ def frame_to_grayscale(frame: FrameData) -> np.ndarray:
     img = Image.open(io.BytesIO(frame.frame_bytes)).convert("L")
     return np.array(img)
 
+#Sharpness estimation for motion detection
+def calculate_sharpness(img: np.ndarray) -> float:
+    import cv2
+    gray = cv2.cvtColor(img, cv2.COLOR_RGB2GRAY)
+    return float(cv2.Laplacian(gray, cv2.CV_64F).var())
+
 
 # BASE STRATEGY
 
@@ -87,6 +94,15 @@ class FrameSamplerStrategy(ABC):
             True if the frame should be processed, False to skip.
         """
         ...
+    def sample_frames(self, frames: list[FrameData]) -> list[FrameData]:
+        self.reset()
+        sampled=[]
+
+        for idx, frame in enumerate(frames):
+            if self.should_sample(frame, idx):
+                sampled.append(frame)
+        
+        return sampled  
 
     @abstractmethod
     def reset(self) -> None:
@@ -215,6 +231,62 @@ class NyquistSampler(FrameSamplerStrategy):
     def reset(self) -> None:
         self._count = 0
 
+class MotionSharpnessSampler(FrameSamplerStrategy):
+    def __init__(
+            self,
+            motion_area_threshold: float = 100,
+            cooldown_frames: int = 10,
+            warmup_frames: int = 100,
+    ):
+        self._threshold = motion_area_threshold
+        self.cooldown_frames = cooldown_frames
+        self.warmup_frames = warmup_frames
+        self.object_detector = cv2.createBackgroundSubtractorMOG2(history=100, varThreshold=16, detectShadows=False)
+        self.reset()
+
+    def should_sample(self, frame: FrameData, index: int) -> bool:
+        img = np.array(Image.open(io.BytesIO(frame.frame_bytes)).convert("RGB"))
+
+        self._frame_count += 1
+        mask = self.object_detector.apply(img)
+
+        if self._frame_count < self.warmup_frames:
+            return False
+
+        contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
+        active_motion = False
+
+        for cnt in contours:
+            area = cv2.contourArea(cnt)
+            if area > self._threshold:
+                active_motion = True
+                score = calculate_sharpness(img) * area
+
+                if score > self._max_score:
+                    self._max_score = score
+                    self._best_frame_id = frame.frame_id
+
+        if not active_motion and self._best_frame_id is not None:
+            self._frames_since_motion += 1
+
+            if self._frames_since_motion > self.cooldown_frames:
+                should_emit = frame.frame_id == self._best_frame_id
+
+                self._best_frame_id = None
+                self._max_score = -1
+                self._frames_since_motion = 0
+
+                return should_emit
+
+        return frame.frame_id == self._best_frame_id
+    
+    def reset(self) -> None:
+        self._best_frame_id = None
+        self._max_score = -1
+        self._frames_since_motion = 0
+        self._frame_count = 0
+
+
 
 # SAMPLER FACTORY
 
@@ -239,6 +311,11 @@ class FrameSampler:
         ),
         SamplerStrategy.NYQUIST: lambda cfg: NyquistSampler(
             event_frequency=cfg.nyquist_event_frequency,
+        ),
+        SamplerStrategy.MOTION_SHARPNESS: lambda cfg: MotionSharpnessSampler(
+            motion_area_threshold=cfg.motion_area_threshold,
+            cooldown_frames=cfg.cooldown_frames,
+            warmup_frames=cfg.warmup_frames,
         ),
     }
 
@@ -267,12 +344,8 @@ class FrameSampler:
         Returns:
             Filtered list of frames that passed the sampling strategy.
         """
-        self._strategy.reset()
-        sampled = []
-
-        for idx, frame in enumerate(frames):
-            if self._strategy.should_sample(frame, idx):
-                sampled.append(frame)
+        
+        sampled = self._strategy.sample_frames(frames)
 
         logger.info(
             f"Sampled {len(sampled)}/{len(frames)} frames "

@@ -49,6 +49,9 @@ frame_sampler:
   motion_threshold: 0.2 # SSIM threshold for motion detection
   nyquist_event_frequency: 1.0 # Expected events per second
   downscale_factor: 1.0 # 1.0 = no downscale, 0.5 = half resolution
+  motion_area_threshold: 100
+  cooldown_frames: 10
+  warmup_frames: 100
 
 # ---------------------------------------------------------------------------
 # INFERENCE CONFIGURATION

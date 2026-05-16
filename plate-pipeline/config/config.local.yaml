@@ -60,6 +60,9 @@ frame_sampler:
   motion_threshold: 0.2
   nyquist_event_frequency: 1.0
   downscale_factor: 1.0
+  motion_area_threshold: 100
+  cooldown_frames: 10
+  warmup_frames: 100
 
 # ---------------------------------------------------------------------------
 # INFERENCE CONFIGURATION

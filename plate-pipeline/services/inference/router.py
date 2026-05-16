@@ -25,7 +25,7 @@ from typing import Any, Optional
 import numpy as np
 from PIL import Image
 
-from services.config import InferenceMode, PipelineConfig
+from services.config import InferenceMode, PipelineConfig, DebugConfig
 from services.decoder import FrameData
 from services.inference.circuit_breaker import CircuitBreaker
 from services.inference.stages import (
@@ -48,10 +48,10 @@ class InferenceRouter:
     pipeline of stages. All routing is config-driven.
     """
 
-    def __init__(self, config: PipelineConfig, registry: ModelRegistry):
+    def __init__(self, config: PipelineConfig, registry: ModelRegistry, debug_config: DebugConfig):
         self._config = config
         self._registry = registry
-        self._config_debug = config.debug
+        self._config_debug = debug_config
 
         # Initialize circuit breaker from config
         cb_config = config.llm.circuit_breaker
@@ -70,7 +70,7 @@ class InferenceRouter:
 
     def _build_pipelines(self) -> dict[InferenceMode, list[Stage]]:
         """Build pipeline stages for each inference mode."""
-        detection = DetectionStage(self._registry, self._config)
+        detection = DetectionStage(self._registry, self._config, self._config_debug)
         ocr = OCRStage(self._registry, self._config, self._config_debug)
         llm_correction = LLMCorrectionStage(
             self._registry, self._circuit_breaker, self._config

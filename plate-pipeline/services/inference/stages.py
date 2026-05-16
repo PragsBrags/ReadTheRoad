@@ -14,8 +14,9 @@ from abc import ABC, abstractmethod
 from typing import Any
 
 from PIL import Image
+from pathlib import Path
 
-from services.config import PipelineConfig
+from services.config import PipelineConfig, DebugConfig
 from services.inference.circuit_breaker import CircuitBreaker
 from services.models import ModelRegistry
 from services.models.preprocessing import crop_resize_plate, preprocess_for_ocr
@@ -53,9 +54,10 @@ class Stage(ABC):
 class DetectionStage(Stage):
     """YOLO license plate detection stage."""
 
-    def __init__(self, registry: ModelRegistry, config: PipelineConfig):
+    def __init__(self, registry: ModelRegistry, config: PipelineConfig, debug_config: DebugConfig):
         self._detector = registry.detector
         self._config = config
+        self._config_debug = debug_config
 
     def process(self, data: dict[str, Any]) -> dict[str, Any]:
         image = data.get("image")
@@ -96,11 +98,11 @@ class DetectionStage(Stage):
 class OCRStage(Stage):
     """OCR text extraction stage."""
 
-    def __init__(self, registry: ModelRegistry, config: PipelineConfig, config_debug: DebugConfig):
+    def __init__(self, registry: ModelRegistry, config: PipelineConfig, debug_config: DebugConfig):
         # Keep a single source of config; debug settings live on config.debug
         self._ocr = registry.ocr
         self._config = config
-        self._config_debug = config_debug
+        self._config_debug = debug_config
 
     def process(self, data: dict[str, Any]) -> dict[str, Any]:
         crops = data.get("plate_crops", [])
@@ -115,10 +117,11 @@ class OCRStage(Stage):
             crop_img = crop_info['image']
             # Optionally preprocess the crop for better OCR results
             if self._config.preprocessing.enabled and self._config.preprocessing.enhance_image_ocr:
+                debug_dir = Path(self._config_debug.output_dir) if self._config_debug.output_dir else None
                 crop_img = preprocess_for_ocr(
                     crop_img,
                     save_debug=self._config.debug.save_intermediate_images,
-                    debug_dir=self._config_debug.debug.output_dir,
+                    debug_dir=debug_dir,
                     debug_prefix=data.get('frame_id', 'unknown'),
                 )
 

@@ -67,6 +67,10 @@ class FrameSamplerConfig(BaseModel):
     nyquist_event_frequency: float = Field(default=1.0, gt=0)
     downscale_factor: float = Field(default=1.0, gt=0, le=1)
 
+    motion_area_threshold: float = Field(default=100, gt=0)
+    cooldown_frames: int = Field(default=5, ge=0)
+    warmup_frames: int = Field(default=10, ge=0)
+
 
 # INFERENCE
 
