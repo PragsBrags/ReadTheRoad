@@ -28,6 +28,7 @@ class DatabaseSessionManager:
         if self.engine is not None and self.create_tables_startup:
             Base.metadata.create_all(self.engine)
     
+    @contextmanager
     def session(self):
         if self.session_factory is None:
             yield None
