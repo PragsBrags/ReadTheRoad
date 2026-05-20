@@ -192,6 +192,17 @@ redis:
   key_prefix: plate_pipeline
 
 # ---------------------------------------------------------------------------
+# DATABSASE — LOCALHOST
+# ---------------------------------------------------------------------------
+database:
+  enabled: true
+  url: postgresql+psycopg://plate_user:plate_pass@localhost:5432/plate_pipeline
+  echo: false
+  create_tables: true
+  pool_size: 5
+  max_overflow: 10
+
+# ---------------------------------------------------------------------------
 # AGGREGATION
 # ---------------------------------------------------------------------------
 aggregation:

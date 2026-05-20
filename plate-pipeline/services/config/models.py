@@ -262,6 +262,14 @@ class MonitoringConfig(BaseModel):
     prometheus: PrometheusConfig = Field(default_factory=PrometheusConfig)
     grafana: GrafanaConfig = Field(default_factory=GrafanaConfig)
 
+# DATABASE
+class DatabaseConfig(BaseModel):
+    enabled: bool = False
+    url: str = "sqlite:///./plate_pipeline.db"
+    echo: bool = False
+    create_tables: bool = True
+    pool_size: int = Field(default=5, ge=1)
+    max_overflow: int = Field(default=10, ge=0)
 
 # ROOT CONFIG
 
@@ -282,5 +290,6 @@ class PipelineConfig(BaseModel):
     queue: QueueConfig = Field(default_factory=QueueConfig)
     workers: WorkersConfig = Field(default_factory=WorkersConfig)
     redis: RedisConfig = Field(default_factory=RedisConfig)
+    database: DatabaseConfig = Field(default_factory=DatabaseConfig)
     aggregation: AggregationConfig = Field(default_factory=AggregationConfig)
     monitoring: MonitoringConfig = Field(default_factory=MonitoringConfig)
