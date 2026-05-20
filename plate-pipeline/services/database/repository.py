@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from services.database.models import FrameResult, IngestionDetails, PlateDetection
 from services.database.schema import FrameResultCreate, JobCompletedUpdate, JobFailedUpdate, JobStartedCreate, PlateDetectionCreate
 
-class ResultsService :
+class ResultRepository:
     def create_job(self, db: Session, data: JobStartedCreate) -> IngestionDetails:
         existing = db.query(IngestionDetails).filter_by(job_id=data.job_id).one_or_none()
         if existing:
