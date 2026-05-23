@@ -15,6 +15,7 @@ from services.sampler import (
     FixedFPSSampler,
     FrameSampler,
     HybridSampler,
+    MotionSharpnessSampler,
     MotionSampler,
     NyquistSampler,
 )
@@ -145,6 +146,25 @@ class TestFrameSampler:
         config = FrameSamplerConfig(strategy=SamplerStrategy.NYQUIST)
         sampler = FrameSampler(config)
         assert isinstance(sampler.strategy, NyquistSampler)
+
+    def test_factory_motion_sharpness(self):
+        """Factory should create OpenCV motion+sharpness strategy."""
+        config = FrameSamplerConfig(strategy=SamplerStrategy.MOTION_SHARPNESS)
+        sampler = FrameSampler(config)
+        assert isinstance(sampler.strategy, MotionSharpnessSampler)
+
+    def test_motion_sharpness_flushes_buffered_best_frame(self):
+        """The strategy should emit its buffered best frame at video end."""
+        sampler = MotionSharpnessSampler(
+            motion_area_threshold=1,
+            cooldown_frames=1,
+            warmup_frames=1,
+            downscale_factor=0.5,
+        )
+        sampled = sampler.sample_frames(make_frames(5))
+
+        assert len(sampled) >= 1
+        assert sampled[0].frame_id == "frame_0"
 
     def test_sample_reduces_frames(self):
         """Sampling should reduce total frame count."""
