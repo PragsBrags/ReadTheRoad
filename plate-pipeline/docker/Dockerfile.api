@@ -53,10 +53,13 @@ COPY main.py      .
 
 
 RUN mkdir -p \
+        /home/appuser \
         /tmp/plate-pipeline/uploads \
         /tmp/plate-pipeline/frames \
         /models \
-    && chown -R appuser:appuser /app /tmp/plate-pipeline /models
+        /tmp/ocr-models \
+        /tmp/fontconfig \
+    && chown -R appuser:appuser /home/appuser /app /tmp/plate-pipeline /models /tmp/ocr-models /tmp/fontconfig
 
 
 COPY --chown=appuser:appuser models/ /models/

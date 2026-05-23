@@ -106,12 +106,11 @@ def _get_metrics():
 
 @worker_init.connect
 def on_worker_init(**kwargs):
-    """Initialize resources when worker starts."""
-    logger.info("Worker initializing — loading models and connections...")
+    """Initialize connections when worker starts (NOT models — avoids fork corruption)."""
+    logger.info("Worker initializing — establishing connections...")
     try:
-        _get_inference_router()
         _get_cache_service()
-        logger.info("Worker initialization complete")
+        logger.info("Worker connections ready (models load lazily per child process)")
     except Exception as e:
         logger.error(f"Worker initialization failed: {e}")
 

@@ -96,7 +96,7 @@ model_registry:
 # OCR CONFIGURATION
 # ---------------------------------------------------------------------------
 ocr:
-  engine: easyocr # easyocr | paddleocr
+  engine: paddleocr # easyocr | paddleocr
   enabled: true
   easyocr:
     languages:

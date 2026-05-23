@@ -45,8 +45,8 @@ COPY dspy_module/ dspy_module/
 COPY services/    services/
 COPY main.py      .
 
-RUN mkdir -p /tmp/plate-pipeline/frames /models \
-    && chown -R worker:worker /app /tmp/plate-pipeline /models
+RUN mkdir -p /home/worker /tmp/plate-pipeline/frames /models /tmp/ocr-models /tmp/fontconfig \
+    && chown -R worker:worker /home/worker /app /tmp/plate-pipeline /models /tmp/ocr-models /tmp/fontconfig
 
 COPY --chown=worker:worker models/ /models/
 
