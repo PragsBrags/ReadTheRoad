@@ -237,51 +237,97 @@ class MotionSharpnessSampler(FrameSamplerStrategy):
             motion_area_threshold: float = 100,
             cooldown_frames: int = 10,
             warmup_frames: int = 100,
+            downscale_factor: float = 1.0,
     ):
         self._threshold = motion_area_threshold
         self.cooldown_frames = cooldown_frames
         self.warmup_frames = warmup_frames
-        self.object_detector = cv2.createBackgroundSubtractorMOG2(history=100, varThreshold=16, detectShadows=False)
+        self.downscale_factor = downscale_factor
         self.reset()
 
     def should_sample(self, frame: FrameData, index: int) -> bool:
+        return self._process_frame(frame, emit_on_cooldown=True) is not None
+
+    def sample_frames(self, frames: list[FrameData]) -> list[FrameData]:
+        self.reset()
+        sampled = []
+
+        for frame in frames:
+            emitted = self._process_frame(frame, emit_on_cooldown=True)
+            if emitted is not None:
+                sampled.append(emitted)
+
+        if self._best_frame is not None:
+            sampled.append(self._best_frame)
+            self._clear_best_frame()
+
+        return sampled
+
+    def _process_frame(
+        self,
+        frame: FrameData,
+        emit_on_cooldown: bool = False,
+    ) -> Optional[FrameData]:
         img = np.array(Image.open(io.BytesIO(frame.frame_bytes)).convert("RGB"))
+        analysis_img = self._downscale(img)
 
         self._frame_count += 1
-        mask = self.object_detector.apply(img)
+        mask = self.object_detector.apply(analysis_img)
 
         if self._frame_count < self.warmup_frames:
-            return False
+            return None
 
+        mask = cv2.medianBlur(mask, 5)
         contours, _ = cv2.findContours(mask, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_SIMPLE)
-        active_motion = False
+        motion_area = sum(cv2.contourArea(cnt) for cnt in contours)
+        active_motion = motion_area > self._threshold
 
-        for cnt in contours:
-            area = cv2.contourArea(cnt)
-            if area > self._threshold:
-                active_motion = True
-                score = calculate_sharpness(img) * area
+        if active_motion:
+            sharpness = calculate_sharpness(analysis_img)
+            score = sharpness * motion_area
 
-                if score > self._max_score:
-                    self._max_score = score
-                    self._best_frame_id = frame.frame_id
+            if score > self._max_score:
+                self._max_score = score
+                self._best_frame = frame
 
-        if not active_motion and self._best_frame_id is not None:
-            self._frames_since_motion += 1
+            self._frames_since_motion = 0
+            return None
 
-            if self._frames_since_motion > self.cooldown_frames:
-                should_emit = frame.frame_id == self._best_frame_id
+        if self._best_frame is None:
+            return None
 
-                self._best_frame_id = None
-                self._max_score = -1
-                self._frames_since_motion = 0
+        self._frames_since_motion += 1
+        if emit_on_cooldown and self._frames_since_motion > self.cooldown_frames:
+            emitted = self._best_frame
+            self._clear_best_frame()
+            return emitted
 
-                return should_emit
+        return None
 
-        return frame.frame_id == self._best_frame_id
+    def _downscale(self, img: np.ndarray) -> np.ndarray:
+        if self.downscale_factor >= 1.0:
+            return img
+
+        return cv2.resize(
+            img,
+            None,
+            fx=self.downscale_factor,
+            fy=self.downscale_factor,
+            interpolation=cv2.INTER_AREA,
+        )
+
+    def _clear_best_frame(self) -> None:
+        self._best_frame = None
+        self._max_score = -1
+        self._frames_since_motion = 0
     
     def reset(self) -> None:
-        self._best_frame_id = None
+        self.object_detector = cv2.createBackgroundSubtractorMOG2(
+            history=100,
+            varThreshold=16,
+            detectShadows=False,
+        )
+        self._best_frame = None
         self._max_score = -1
         self._frames_since_motion = 0
         self._frame_count = 0
@@ -316,6 +362,7 @@ class FrameSampler:
             motion_area_threshold=cfg.motion_area_threshold,
             cooldown_frames=cfg.cooldown_frames,
             warmup_frames=cfg.warmup_frames,
+            downscale_factor=cfg.downscale_factor,
         ),
     }
 

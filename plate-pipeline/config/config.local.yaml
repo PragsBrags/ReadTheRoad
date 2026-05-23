@@ -36,7 +36,7 @@ preprocessing:
 debug:
   save_intermediate_images: false
   output_dir: /tmp/plate-pipeline/debug
-  
+
 # ---------------------------------------------------------------------------
 # DECODER (FFmpeg — MANDATORY)
 # ---------------------------------------------------------------------------
@@ -55,11 +55,11 @@ decoder:
 # FRAME SAMPLER
 # ---------------------------------------------------------------------------
 frame_sampler:
-  strategy: hybrid
+  strategy: motion_sharpness # fixed_fps | motion | hybrid | nyquist | motion_sharpness
   fixed_fps: 2
   motion_threshold: 0.2
   nyquist_event_frequency: 1.0
-  downscale_factor: 1.0
+  downscale_factor: 0.5
   motion_area_threshold: 100
   cooldown_frames: 10
   warmup_frames: 100
@@ -95,7 +95,7 @@ model_registry:
     path: ./models/plate.pt # Local path — put your .pt here
     confidence_threshold: 0.1
     iou_threshold: 0.1
-    device: mps # cpu | cuda | mps
+    device: cpu # cpu | cuda | mps
     imgsz: 640
     selection_policy: all # all | best
 
