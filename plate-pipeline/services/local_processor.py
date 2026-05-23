@@ -149,6 +149,7 @@ class LocalProcessor:
                 plates = result.get("plates", [])
                 if plates:
                     self._cache.append_job_plates(job_id, plates)
+                self._cache.increment_job_frames_processed(job_id)
 
             # --- Metrics (mirrors worker.py) ---
             if self._metrics:

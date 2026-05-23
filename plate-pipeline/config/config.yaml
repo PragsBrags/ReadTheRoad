@@ -30,7 +30,7 @@ decoder:
 # ---------------------------------------------------------------------------
 # PREPROCESSING
 # ---------------------------------------------------------------------------
-preprocessing: 
+preprocessing:
   enabled: false
   min_plate_width: 100
   enhance_image_ocr: true
@@ -39,7 +39,7 @@ preprocessing:
 debug:
   save_intermediate_images: false
   output_dir: /tmp/plate-pipeline/debug
-  
+
 # ---------------------------------------------------------------------------
 # FRAME SAMPLER
 # ---------------------------------------------------------------------------

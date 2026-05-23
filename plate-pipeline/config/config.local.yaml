@@ -27,7 +27,7 @@ video_ingestion:
 # ---------------------------------------------------------------------------
 # PREPROCESSING
 # ---------------------------------------------------------------------------
-preprocessing: 
+preprocessing:
   enabled: false
   min_plate_width: 100
   enhance_image_ocr: true

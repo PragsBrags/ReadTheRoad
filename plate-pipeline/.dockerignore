@@ -1,0 +1,17 @@
+.git
+.gitignore
+.venv
+venv
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache
+.ruff_cache
+tmp/
+docker/prometheus-data/
+docker/grafana-data/
+docker/rabbitmq-data/
+docker/redis-data/
+*.mp4
+test_ocr_run.py

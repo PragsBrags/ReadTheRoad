@@ -29,6 +29,11 @@ services:
     environment:
       - PLATE_PIPELINE_CONFIG=/app/config/config.yaml
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - PADDLE_HOME=/models/paddle
+      - PADDLEX_HOME=/models/paddlex
+      - EASYOCR_MODULE_PATH=/models/easyocr
+      - TORCH_HOME=/models/torch
+      - PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
     depends_on:
       rabbitmq:
         condition: service_healthy
@@ -50,6 +55,11 @@ services:
     environment:
       - PLATE_PIPELINE_CONFIG=/app/config/config.yaml
       - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+      - PADDLE_HOME=/models/paddle
+      - PADDLEX_HOME=/models/paddlex
+      - EASYOCR_MODULE_PATH=/models/easyocr
+      - TORCH_HOME=/models/torch
+      - PADDLE_PDX_DISABLE_MODEL_SOURCE_CHECK=True
     depends_on:
       rabbitmq:
         condition: service_healthy

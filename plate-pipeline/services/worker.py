@@ -190,6 +190,7 @@ def process_frame(self, frame_payload: dict[str, Any]) -> dict[str, Any]:
             plates = result.get("plates", [])
             if plates:
                 cache.append_job_plates(job_id, plates)
+            cache.increment_job_frames_processed(job_id)
 
         # --- Metrics ---
         if metrics:
@@ -215,6 +216,8 @@ def process_frame(self, frame_payload: dict[str, Any]) -> dict[str, Any]:
             self.retry(exc=e)
         except self.MaxRetriesExceededError:
             logger.error(f"[{frame_id}] Max retries exceeded")
+            if job_id and cache:
+                cache.increment_job_frames_processed(job_id)
             return {
                 "frame_id": frame_id,
                 "job_id": job_id,

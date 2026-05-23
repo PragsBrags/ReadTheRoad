@@ -259,19 +259,66 @@ class CacheService:
             return None
 
         try:
-            # Try atomic list format first (plates appended via RPUSH)
+            # Try legacy/final aggregated key-value format first
+            kv_key = self._key("job", job_id, "results")
+            data = self._client.get(kv_key)
+            if data:
+                return json.loads(data)
+
+            # Fallback to atomic list format (plates appended via RPUSH)
             list_key = self._key("job", job_id, "plates")
             items = self._client.lrange(list_key, 0, -1)
             if items:
                 return [json.loads(item) for item in items]
 
-            # Fallback to legacy key-value format
-            kv_key = self._key("job", job_id, "results")
-            data = self._client.get(kv_key)
-            return json.loads(data) if data else None
+            return None
         except Exception as e:
             logger.warning(f"Job results get failed: {e}")
             return None
+
+    def set_job_total_frames(self, job_id: str, total_frames: int) -> None:
+        """Store the total number of frames to be processed for a job."""
+        if not self._connected:
+            return
+        try:
+            key = self._key("job", job_id, "total_frames")
+            self._client.setex(key, self._config.ttl_seconds * 2, str(total_frames))
+        except Exception as e:
+            logger.warning(f"Failed to set job total frames: {e}")
+
+    def increment_job_frames_processed(self, job_id: str) -> int:
+        """Increment the count of processed frames for a job."""
+        if not self._connected:
+            return 0
+        try:
+            key = self._key("job", job_id, "processed_frames")
+            val = self._client.incr(key)
+            self._client.expire(key, self._config.ttl_seconds * 2)
+            return val
+        except Exception as e:
+            logger.warning(f"Failed to increment job frames processed: {e}")
+            return 0
+
+    def get_job_progress(self, job_id: str) -> dict[str, int]:
+        """Get the total and processed frame count for a job."""
+        if not self._connected:
+            return {"total_frames": 0, "processed_frames": 0}
+        try:
+            total_key = self._key("job", job_id, "total_frames")
+            proc_key = self._key("job", job_id, "processed_frames")
+            
+            # Fetch both keys
+            pipe = self._client.pipeline()
+            pipe.get(total_key)
+            pipe.get(proc_key)
+            total_val, proc_val = pipe.execute()
+            
+            total = int(total_val) if total_val else 0
+            processed = int(proc_val) if proc_val else 0
+            return {"total_frames": total, "processed_frames": processed}
+        except Exception as e:
+            logger.warning(f"Failed to get job progress: {e}")
+            return {"total_frames": 0, "processed_frames": 0}
 
     # WORKER HEALTH
 

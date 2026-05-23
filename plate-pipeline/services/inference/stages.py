@@ -11,7 +11,7 @@ import io
 import logging
 import time
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 from PIL import Image
 from pathlib import Path
@@ -54,10 +54,16 @@ class Stage(ABC):
 class DetectionStage(Stage):
     """YOLO license plate detection stage."""
 
-    def __init__(self, registry: ModelRegistry, config: PipelineConfig, debug_config: DebugConfig):
+    def __init__(
+        self,
+        registry: ModelRegistry,
+        config: Optional[PipelineConfig] = None,
+        debug_config: Optional[DebugConfig] = None,
+    ):
         self._detector = registry.detector
-        self._config = config
-        self._config_debug = debug_config
+        from services.config import load_config
+        self._config = config if config is not None else load_config()
+        self._config_debug = debug_config if debug_config is not None else self._config.debug
 
     def process(self, data: dict[str, Any]) -> dict[str, Any]:
         image = data.get("image")
@@ -98,11 +104,17 @@ class DetectionStage(Stage):
 class OCRStage(Stage):
     """OCR text extraction stage."""
 
-    def __init__(self, registry: ModelRegistry, config: PipelineConfig, debug_config: DebugConfig):
+    def __init__(
+        self,
+        registry: ModelRegistry,
+        config: Optional[PipelineConfig] = None,
+        debug_config: Optional[DebugConfig] = None,
+    ):
         # Keep a single source of config; debug settings live on config.debug
         self._ocr = registry.ocr
-        self._config = config
-        self._config_debug = debug_config
+        from services.config import load_config
+        self._config = config if config is not None else load_config()
+        self._config_debug = debug_config if debug_config is not None else self._config.debug
 
     def process(self, data: dict[str, Any]) -> dict[str, Any]:
         crops = data.get("plate_crops", [])
@@ -155,11 +167,13 @@ class LLMCorrectionStage(Stage):
         self,
         registry: ModelRegistry,
         circuit_breaker: CircuitBreaker,
-        config: PipelineConfig,
+        config: Optional[PipelineConfig] = None,
     ):
         self._llm = registry.llm
         self._breaker = circuit_breaker
-        self._config = config.llm
+        from services.config import load_config
+        cfg = config if config is not None else load_config()
+        self._config = cfg.llm
         # Track LLM calls per job_id to enforce limits independently
         self._calls_per_job: dict[str, int] = {}
 

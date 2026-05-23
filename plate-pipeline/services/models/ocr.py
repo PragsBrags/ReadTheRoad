@@ -86,16 +86,21 @@ class PaddleOCRReader(OCRModel):
 
         try:
             from paddleocr import PaddleOCR
+            
+            # Map use_gpu setting to device parameter
+            device = "gpu" if self._config.use_gpu else "cpu"
+            
             self._reader = PaddleOCR(
                 lang=self._config.lang,
-                use_angle_cls=self._config.use_angle_cls,
-                use_gpu=self._config.use_gpu,
-                show_log=False,
+                device=device,
+                use_textline_orientation=self._config.use_angle_cls,
+                use_doc_orientation_classify=False,
+                use_doc_unwarping=False,
             )
             self._loaded = True
             logger.info(
                 f"PaddleOCR loaded (lang={self._config.lang}, "
-                f"gpu={self._config.use_gpu})"
+                f"device={device})"
             )
         except Exception as e:
             logger.error(f"Failed to load PaddleOCR: {e}")
@@ -106,14 +111,46 @@ class PaddleOCRReader(OCRModel):
         if not self._loaded or self._reader is None:
             return []
 
-        result = self._reader.ocr(image, cls=self._config.use_angle_cls)
+        try:
+            result = self._reader.predict(image)
+        except Exception as e:
+            logger.error(f"PaddleOCR prediction failed: {e}")
+            return []
 
         texts = []
-        if result and result[0]:
-            for line in result[0]:
-                bbox = line[0]
-                text = line[1][0]
-                conf = line[1][1]
+        if result and len(result) > 0:
+            ocr_res = result[0]
+            
+            # Extract fields handling both object attribute and dictionary formats
+            rec_texts = getattr(ocr_res, "rec_texts", None)
+            if rec_texts is None and isinstance(ocr_res, dict):
+                rec_texts = ocr_res.get("rec_texts", [])
+            elif rec_texts is None:
+                rec_texts = []
+
+            rec_scores = getattr(ocr_res, "rec_scores", None)
+            if rec_scores is None and isinstance(ocr_res, dict):
+                rec_scores = ocr_res.get("rec_scores", [])
+            elif rec_scores is None:
+                rec_scores = []
+
+            dt_polys = getattr(ocr_res, "dt_polys", None)
+            if dt_polys is None and isinstance(ocr_res, dict):
+                dt_polys = ocr_res.get("dt_polys", [])
+            elif dt_polys is None:
+                dt_polys = []
+
+            for i, text in enumerate(rec_texts):
+                conf = rec_scores[i] if i < len(rec_scores) else 1.0
+                poly = dt_polys[i] if i < len(dt_polys) else None
+                
+                bbox = None
+                if poly is not None:
+                    if hasattr(poly, "tolist"):
+                        bbox = poly.tolist()
+                    else:
+                        bbox = list(poly)
+
                 texts.append({
                     "text": text,
                     "confidence": float(conf),
@@ -121,6 +158,7 @@ class PaddleOCRReader(OCRModel):
                 })
 
         return texts
+
 
     def is_loaded(self) -> bool:
         return self._loaded

@@ -48,10 +48,16 @@ class InferenceRouter:
     pipeline of stages. All routing is config-driven.
     """
 
-    def __init__(self, config: PipelineConfig, registry: ModelRegistry, debug_config: DebugConfig):
+    def __init__(
+        self,
+        config: PipelineConfig,
+        registry: ModelRegistry,
+        debug_config: Optional[DebugConfig] = None,
+    ):
         self._config = config
         self._registry = registry
-        self._config_debug = debug_config
+        self._config_debug = debug_config if debug_config is not None else config.debug
+
 
         # Initialize circuit breaker from config
         cb_config = config.llm.circuit_breaker

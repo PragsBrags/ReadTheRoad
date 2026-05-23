@@ -17,7 +17,7 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, Optional
 
-from fastapi import APIRouter, HTTPException, UploadFile, File
+from fastapi import APIRouter, HTTPException, UploadFile, File, BackgroundTasks
 from pydantic import BaseModel, Field, field_validator
 
 from services.config import PipelineConfig
@@ -203,10 +203,33 @@ class IngestionService:
             for i, frame in enumerate(sampled):
                 self._save_sampled_frame(frame, job_id, i)
 
+            # Store total frames in cache before dispatching
+            if self._cache:
+                self._cache.set_job_total_frames(job_id, len(sampled))
+
             # 4) Dispatch frames for inference
             processing_mode, inference_results = self._dispatcher.dispatch_frames(
                 sampled, job_id=job_id
             )
+
+            if processing_mode == "distributed":
+                elapsed = (time.time() - start) * 1000
+                logger.info(
+                    f"[{job_id}] Queued for distributed processing: {len(frames)} extracted → "
+                    f"{len(sampled)} sampled ({elapsed:.0f}ms)"
+                )
+                return IngestResponse(
+                    job_id=job_id,
+                    source=filename,
+                    status="processing",
+                    frames_extracted=len(frames),
+                    frames_sampled=len(sampled),
+                    frames_processed=0,
+                    plates=[],
+                    inference_mode=self._config.inference.mode.value,
+                    processing_mode=processing_mode,
+                    message=f"Job queued for distributed processing. {len(sampled)} frames dispatched.",
+                )
 
             # 5) Aggregate results (multi-frame dedup + confidence voting)
             all_plates: list[dict[str, Any]] = []
@@ -306,9 +329,30 @@ class IngestionService:
             for i, frame in enumerate(sampled):
                 self._save_sampled_frame(frame, stream.stream_id, i)
 
+            # Store total frames in cache before dispatching
+            if self._cache:
+                self._cache.set_job_total_frames(stream.stream_id, len(sampled))
+
             processing_mode, inference_results = self._dispatcher.dispatch_frames(
                 sampled, job_id=stream.stream_id
             )
+
+            if processing_mode == "distributed":
+                stream.status = "processing"
+                stream.frames_processed = 0
+                elapsed = (time.time() - start) * 1000
+                return IngestResponse(
+                    job_id=stream.stream_id,
+                    source=stream.source,
+                    status="processing",
+                    frames_extracted=len(frames),
+                    frames_sampled=len(sampled),
+                    frames_processed=0,
+                    plates=[],
+                    inference_mode=self._config.inference.mode.value,
+                    processing_mode=processing_mode,
+                    message=f"Stream queued for distributed processing. {len(sampled)} frames dispatched.",
+                )
 
             all_plates: list[dict[str, Any]] = []
             if self._aggregation and inference_results:

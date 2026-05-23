@@ -74,25 +74,79 @@ def create_api_router(services: dict[str, Any]) -> APIRouter:
         """Query detection results for a job."""
         cache = services.get("cache")
         aggregation = services.get("aggregation")
+        ingestion = services.get("ingestion")
 
         results = None
+        status = "unknown"
+        frames_sampled = 0
+        frames_processed = 0
 
-        # Try cache first
+        # Try to get progress from cache
         if cache and cache.is_connected:
+            progress = cache.get_job_progress(job_id)
+            frames_sampled = progress.get("total_frames", 0)
+            frames_processed = progress.get("processed_frames", 0)
+
+            # Check if this job has results
             results = cache.get_job_results(job_id)
 
-        # Try aggregation service
-        if results is None and aggregation:
-            results = aggregation.flush(job_id)
+        # Determine status
+        if ingestion and job_id in ingestion.active_streams:
+            status = "streaming"
+        elif frames_sampled > 0:
+            if frames_processed >= frames_sampled:
+                status = "completed"
+            else:
+                status = "processing"
+        elif results is not None:
+            # Fallback for when results exist but progress was not explicitly set (e.g. local mode cached results)
+            status = "completed"
+            frames_processed = len(results)
+            frames_sampled = len(results)
+
+        # If job is completed, finalize aggregation and cache
+        if status == "completed":
+            if results is None:
+                results = []
+            if len(results) > 0 and "frame_count" not in results[0] and aggregation:
+                aggregation.flush(job_id)  # Clear state
+                aggregation.add_result(job_id, {"plates": results})
+                results = aggregation.flush(job_id)
+                if cache and cache.is_connected:
+                    cache.store_job_results(job_id, results)
+            elif len(results) == 0 and cache and cache.is_connected:
+                # Cache empty list so future calls don't hit fallback list lookups
+                cache.store_job_results(job_id, [])
+
+        # If it is still processing/streaming, aggregate on-the-fly for preview
+        elif status in ("processing", "streaming"):
+            if results is None:
+                results = []
+            if len(results) > 0 and "frame_count" not in results[0] and aggregation:
+                aggregation.flush(job_id)  # Clear state
+                aggregation.add_result(job_id, {"plates": results})
+                results = aggregation.flush(job_id)
+
+        # Fallback to local aggregation or raising 404
+        if results is None and status == "unknown":
+            # If aggregation service has it in active windows
+            if aggregation and job_id in aggregation._windows:
+                results = aggregation.flush(job_id)
+            if results is None:
+                raise HTTPException(status_code=404, detail=f"No results for job {job_id}")
 
         if results is None:
-            raise HTTPException(status_code=404, detail=f"No results for job {job_id}")
+            results = []
 
         return {
             "job_id": job_id,
+            "status": status,
+            "frames_sampled": frames_sampled,
+            "frames_processed": frames_processed,
             "plates": results,
             "count": len(results),
         }
+
 
     @router.get("/metrics")
     async def prometheus_metrics():
