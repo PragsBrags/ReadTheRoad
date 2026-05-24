@@ -55,7 +55,7 @@ decoder:
 # FRAME SAMPLER
 # ---------------------------------------------------------------------------
 frame_sampler:
-  strategy: motion_sharpness # fixed_fps | motion | hybrid | nyquist | motion_sharpness
+  strategy: nyquist # fixed_fps | motion | hybrid | nyquist | motion_sharpness
   fixed_fps: 2
   motion_threshold: 0.2
   nyquist_event_frequency: 1.0
@@ -195,7 +195,7 @@ redis:
 # ---------------------------------------------------------------------------
 database:
   enabled: true
-  url: postgresql+psycopg://plate_user:plate_pass@localhost:5432/plate_pipeline
+  url: postgresql+psycopg://postgres:god123great@localhost:5432/plate_pipeline
   echo: false
   create_tables: true
   pool_size: 5

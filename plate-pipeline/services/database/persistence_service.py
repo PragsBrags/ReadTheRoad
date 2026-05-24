@@ -51,20 +51,14 @@ class ResultPersistenceService:
         with self._manager.session() as db:
             self._repo.failed_job(db, job)
 
-    def save_frame_result(self, *, job: FrameResultCreate, plate: PlateDetectionCreate) -> None:
+    def save_frame_result(
+    self,
+    *,
+    job: FrameResultCreate,
+    plates: list[PlateDetectionCreate],
+        ) -> None:
         if not self.enabled:
             return
 
         with self._manager.session() as db:
-            self._repo.save_frame(db, job, plate)
-
-    def save_aggregated_plates(self, *, job: PlateDetectionCreate) -> None:
-        if not self.enabled or not job:
-            return
-
-        with self._manager.session() as db:
-            for plate in job.job_id:
-                self._repo.save_plate(
-                    db,
-                    job
-                )
+            self._repo.save_frame(db, job, plates)

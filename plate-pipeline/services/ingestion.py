@@ -25,6 +25,7 @@ from services.decoder import FFmpegDecoder, FrameData
 from services.monitoring import MetricsCollector
 from services.sampler import FrameSampler
 from services.task_dispatcher import TaskDispatcher
+from services.database.schema import JobStartedCreate, JobCompletedUpdate, JobFailedUpdate
 
 logger = logging.getLogger(__name__)
 
@@ -117,6 +118,7 @@ class IngestionService:
         metrics: Optional[MetricsCollector] = None,
         cache=None,
         aggregation=None,
+        persistence=None,
     ):
         self._config = config
         self._decoder = decoder
@@ -125,6 +127,7 @@ class IngestionService:
         self._metrics = metrics
         self._cache = cache
         self._aggregation = aggregation
+        self._persistence = persistence
         self._active_streams: dict[str, ActiveStream] = {}
         self._upload_dir = Path(config.video_ingestion.upload_dir)
         self._upload_dir.mkdir(parents=True, exist_ok=True)
@@ -157,6 +160,16 @@ class IngestionService:
 
         # --- Validate file type ---
         filename = file.filename or "upload"
+
+        if self._persistence:
+            self._persistence.save_job_started(
+                JobStartedCreate(
+                    job_id=job_id,
+                    source=filename,
+                    inference_mode=self._config.inference.mode.value,
+                )
+            )
+
         ext = Path(filename).suffix.lower()
         if ext not in _ALLOWED_VIDEO_EXTENSIONS:
             raise HTTPException(
@@ -258,6 +271,15 @@ class IngestionService:
                 f"({processing_mode} mode, {elapsed:.0f}ms)"
             )
 
+            if self._persistence:
+                self._persistence.save_job_completed(
+                    job=JobCompletedUpdate(
+                        job_id=job_id,
+                        inference_mode=self._config.inference.mode.value,
+                        processing_mode=processing_mode,
+                    )
+                )
+
             return IngestResponse(
                 job_id=job_id,
                 source=filename,
@@ -276,6 +298,10 @@ class IngestionService:
             )
 
         except HTTPException:
+            if self._persistence:
+                self._persistence.save_job_failed(
+                    job=JobFailedUpdate(job_id=job_id)
+                )
             raise
         except Exception as e:
             logger.error(f"[{job_id}] Ingestion failed: {e}")
@@ -315,6 +341,15 @@ class IngestionService:
     async def _process_stream_once(self, stream: ActiveStream) -> IngestResponse:
         """Process a stream once (non-continuous)."""
         start = time.time()
+
+        if self._persistence:
+            self._persistence.save_job_started(
+                JobStartedCreate(
+                    job_id=stream.stream_id,
+                    source=stream.source,
+                    inference_mode=self._config.inference.mode.value,
+                )
+            )
 
         try:
             frames: list[FrameData] = []
@@ -390,6 +425,12 @@ class IngestionService:
             )
 
         except Exception as e:
+
+            if self._persistence:
+                self._persistence.save_job_failed(
+                    job=JobFailedUpdate(job_id=stream.stream_id)
+                )
+
             stream.status = "error"
             stream.error = str(e)
             logger.error(f"[{stream.stream_id}] Stream processing failed: {e}")
@@ -403,6 +444,15 @@ class IngestionService:
     async def _process_continuous_stream(self, stream: ActiveStream) -> None:
         """Process a stream continuously until stopped."""
         logger.info(f"[{stream.stream_id}] Starting continuous stream: {stream.source}")
+
+        if self._persistence:
+            self._persistence.save_job_started(
+                JobStartedCreate(
+                    job_id=stream.stream_id,
+                    source=stream.source,
+                    inference_mode=self._config.inference.mode.value,
+                )
+            )
 
         try:
             while stream.status == "active":
@@ -433,8 +483,33 @@ class IngestionService:
                     )
                     await asyncio.sleep(5)
 
+            if self._persistence:
+                self._persistence.save_job_completed(
+                    job=JobCompletedUpdate(
+                        job_id=stream.stream_id,
+                        inference_mode=self._config.inference.mode.value,
+                        processing_mode=self._dispatcher.mode,
+                    )
+                )
+
         except asyncio.CancelledError:
             logger.info(f"[{stream.stream_id}] Stream cancelled")
+
+            if self._persistence:
+                self._persistence.save_job_completed(
+                    job=JobCompletedUpdate(
+                        job_id=stream.stream_id,
+                        inference_mode=self._config.inference.mode.value,
+                        processing_mode=self._dispatcher.mode,
+                    )
+                )
+        except Exception as e:
+            # ====== ADD HERE: Uncaught Fatal Continuous Error Hook ======
+            if self._persistence:
+                self._persistence.save_job_failed(
+                    job=JobFailedUpdate(job_id=stream.stream_id)
+                )
+                    
         finally:
             stream.status = "stopped"
             if stream.stream_id in self._active_streams:

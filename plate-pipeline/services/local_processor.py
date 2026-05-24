@@ -20,9 +20,14 @@ from typing import Any, Optional
 
 from services.config import PipelineConfig
 from services.decoder import FrameData
+from services.database import ResultPersistenceService
+from services.database.schema import FrameResultCreate, PlateDetectionCreate
+from services.config import load_config
 
 logger = logging.getLogger(__name__)
 
+config = load_config()
+persistence = ResultPersistenceService(config.database)
 
 class LocalProcessor:
     """
@@ -139,6 +144,35 @@ class LocalProcessor:
             result["job_id"] = job_id
             result["processed_at"] = time.time()
             result["processing_time_ms"] = (time.time() - start) * 1000
+
+            plates = [
+            PlateDetectionCreate(
+                job_id=job_id,
+                frame_id=frame_id,
+                plate_text=plate.get("text"),
+                vehicle_class=plate.get("vehicle_class"),
+                confidence=plate.get("confidence", 0.0),
+                raw_plate=plate,
+            )
+            for plate in result.get("plates", [])
+            ]
+
+            persistence.save_frame_result(
+                job=FrameResultCreate(
+                    job_id=job_id,
+                    frame_id=frame_id,
+                    source=frame.source,
+                    timestamp_ms=frame.timestamp_ms,
+                    inference_mode=result.get("inference_mode"),
+                    plate_count=len(plates),
+                    processing_time_ms=result.get("processing_time_ms", 0.0),
+                    detection_time_ms=result.get("timings", {}).get("detection_ms", 0.0),
+                    ocr_time_ms=result.get("timings", {}).get("ocr_ms", 0.0),
+                    llm_time_ms=result.get("timings", {}).get("llm_ms", 0.0),
+                ),
+                plates=plates,
+            )
+
 
             # --- Cache result (mirrors worker.py) ---
             if content_hash and self._cache:

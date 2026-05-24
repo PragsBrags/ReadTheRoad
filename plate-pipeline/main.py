@@ -63,6 +63,11 @@ def _init_services(app: FastAPI) -> None:
     cache = CacheService(config.redis)
     _services["cache"] = cache
 
+    # Database service
+    from services.database import ResultPersistenceService
+    persistence = ResultPersistenceService(config.database)
+    _services["persistence"] = persistence
+
     # Aggregation service
     from services.aggregation import AggregationService
     aggregation = AggregationService(config.aggregation)
@@ -85,6 +90,7 @@ def _init_services(app: FastAPI) -> None:
         metrics=metrics,
         cache=cache,
         aggregation=aggregation,
+        persistence=persistence,
     )
     _services["ingestion"] = ingestion
 

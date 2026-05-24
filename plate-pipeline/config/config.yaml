@@ -44,7 +44,7 @@ debug:
 # FRAME SAMPLER
 # ---------------------------------------------------------------------------
 frame_sampler:
-  strategy: motion_sharpness # fixed_fps | motion | hybrid | nyquist | motion_sharpness
+  strategy: nyquist # fixed_fps | motion | hybrid | nyquist | motion_sharpness
   fixed_fps: 2
   motion_threshold: 0.2 # SSIM threshold for motion detection
   nyquist_event_frequency: 1.0 # Expected events per second
@@ -85,7 +85,7 @@ inference:
 # ---------------------------------------------------------------------------
 model_registry:
   yolo:
-    path: /models/plate.pt
+    path: ./models/plate.pt
     confidence_threshold: 0.1
     iou_threshold: 0.1
     device: mps # cpu | cuda | mps
@@ -196,7 +196,7 @@ redis:
 # ---------------------------------------------------------------------------
 database:
   enabled: true
-  url: postgresql+psycopg://plate_user:plate_pass@localhost:5432/plate_pipeline
+  url: postgresql+psycopg://postgres:god123great@localhost:5432/plate_pipeline
   echo: false
   create_tables: true
   pool_size: 5

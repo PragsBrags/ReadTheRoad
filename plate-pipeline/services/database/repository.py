@@ -40,14 +40,19 @@ class ResultRepository:
         row.created_at = data.created_at
         row.completed_at = data.completed_at
 
-    def save_frame(self, db: Session, data: FrameResultCreate, plate_info: PlateDetectionCreate) -> None:
-        row=FrameResult(
+    def save_frame(
+    self,
+    db: Session,
+    data: FrameResultCreate,
+    plates: list[PlateDetectionCreate],
+        ) -> None:
+        row = FrameResult(
             job_id=data.job_id,
             frame_id=data.frame_id,
             source=data.source,
             timestamp_ms=data.timestamp_ms,
             inference_mode=data.inference_mode,
-            plate_count= data.plate_count,
+            plate_count=len(plates),
             processing_time_ms=data.processing_time_ms,
             detection_time_ms=data.detection_time_ms,
             ocr_time_ms=data.ocr_time_ms,
@@ -56,10 +61,15 @@ class ResultRepository:
         db.add(row)
         db.flush()
 
-        for plate in range(data.plate_count):
+        for plate in plates:
             self.save_plate(
                 db,
-                plate_info,
+                plate.model_copy(
+                    update={
+                        "frame_result_id": row.id,
+                        "frame_id": data.frame_id,
+                    }
+                ),
             )
 
     def save_plate(self, db: Session, data: PlateDetectionCreate) -> None:
