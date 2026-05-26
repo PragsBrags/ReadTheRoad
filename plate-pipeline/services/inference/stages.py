@@ -60,7 +60,7 @@ class DetectionStage(Stage):
         config: Optional[PipelineConfig] = None,
         debug_config: Optional[DebugConfig] = None,
     ):
-        self._detector = registry.detector
+        self._registry = registry
         from services.config import load_config
         self._config = config if config is not None else load_config()
         self._config_debug = debug_config if debug_config is not None else self._config.debug
@@ -72,7 +72,8 @@ class DetectionStage(Stage):
             return data
 
         start = time.time()
-        detections = self._detector.detect(image) if self._detector else []
+        detector = self._registry.detector
+        detections = detector.detect(image) if detector else []
         data["detections"] = detections
         data["detection_time_ms"] = (time.time() - start) * 1000
 
@@ -111,14 +112,15 @@ class OCRStage(Stage):
         debug_config: Optional[DebugConfig] = None,
     ):
         # Keep a single source of config; debug settings live on config.debug
-        self._ocr = registry.ocr
+        self._registry = registry
         from services.config import load_config
         self._config = config if config is not None else load_config()
         self._config_debug = debug_config if debug_config is not None else self._config.debug
 
     def process(self, data: dict[str, Any]) -> dict[str, Any]:
         crops = data.get("plate_crops", [])
-        if not crops or not self._ocr:
+        ocr = self._registry.ocr
+        if not crops or not ocr:
             data["ocr_results"] = []
             return data
 
@@ -138,7 +140,7 @@ class OCRStage(Stage):
                 )
 
             # Pass the (possibly preprocessed) image to the OCR reader
-            texts = self._ocr.read_text(crop_img)
+            texts = ocr.read_text(crop_img)
             combined_text = " ".join(t["text"] for t in texts).strip()
             max_conf = max((t["confidence"] for t in texts), default=0.0)
 
@@ -169,7 +171,7 @@ class LLMCorrectionStage(Stage):
         circuit_breaker: CircuitBreaker,
         config: Optional[PipelineConfig] = None,
     ):
-        self._llm = registry.llm
+        self._registry = registry
         self._breaker = circuit_breaker
         from services.config import load_config
         cfg = config if config is not None else load_config()
@@ -179,7 +181,8 @@ class LLMCorrectionStage(Stage):
 
     def process(self, data: dict[str, Any]) -> dict[str, Any]:
         ocr_results = data.get("ocr_results", [])
-        if not ocr_results or not self._llm:
+        llm = self._registry.llm
+        if not ocr_results or not llm:
             data["llm_corrections"] = []
             return data
 
@@ -217,7 +220,7 @@ class LLMCorrectionStage(Stage):
                 image_bytes = buf.getvalue()
 
             try:
-                result = self._llm.correct_plate_text(
+                result = llm.correct_plate_text(
                     ocr_text=ocr_result["text"],
                     image_bytes=image_bytes,
                 )
@@ -265,12 +268,13 @@ class DirectLLMStage(Stage):
         registry: ModelRegistry,
         circuit_breaker: CircuitBreaker,
     ):
-        self._llm = registry.llm
+        self._registry = registry
         self._breaker = circuit_breaker
 
     def process(self, data: dict[str, Any]) -> dict[str, Any]:
         crops = data.get("plate_crops", [])
-        if not crops or not self._llm:
+        llm = self._registry.llm
+        if not crops or not llm:
             data["direct_llm_results"] = []
             return data
 
@@ -289,7 +293,7 @@ class DirectLLMStage(Stage):
             image_bytes = buf.getvalue()
 
             try:
-                result = self._llm.correct_plate_text(
+                result = llm.correct_plate_text(
                     ocr_text="",
                     image_bytes=image_bytes,
                 )

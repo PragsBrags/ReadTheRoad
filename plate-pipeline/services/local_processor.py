@@ -83,9 +83,9 @@ class LocalProcessor:
 
             logger.info(
                 f"LocalProcessor: Models loaded in {elapsed:.0f}ms — "
-                f"YOLO={self._model_registry.detector.is_loaded() if self._model_registry.detector else False}, "
-                f"OCR={self._model_registry.ocr.is_loaded() if self._model_registry.ocr else False}, "
-                f"LLM={self._model_registry.llm.is_available() if self._model_registry.llm else False}"
+                f"YOLO={self._model_registry.detector_loaded if self._model_registry else False}, "
+                f"OCR={self._model_registry.ocr_loaded if self._model_registry else False}, "
+                f"LLM={self._model_registry.llm_available if self._model_registry else False}"
             )
             return True
 
@@ -247,18 +247,18 @@ class LocalProcessor:
         return {
             "initialized": True,
             "yolo_loaded": (
-                self._model_registry.detector.is_loaded()
-                if self._model_registry and self._model_registry.detector
+                self._model_registry.detector_loaded
+                if self._model_registry
                 else False
             ),
             "ocr_loaded": (
-                self._model_registry.ocr.is_loaded()
-                if self._model_registry and self._model_registry.ocr
+                self._model_registry.ocr_loaded
+                if self._model_registry
                 else False
             ),
             "llm_available": (
-                self._model_registry.llm.is_available()
-                if self._model_registry and self._model_registry.llm
+                self._model_registry.llm_available
+                if self._model_registry
                 else False
             ),
         }
