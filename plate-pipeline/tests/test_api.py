@@ -13,9 +13,10 @@ from services.ingestion import ActiveStream
 
 @pytest.fixture(scope="module")
 def client():
-    """Create a TestClient with patched FFmpeg dependencies."""
+    """Create a TestClient with patched FFmpeg and Database dependencies."""
     with patch("shutil.which", return_value="/usr/bin/ffmpeg"), \
-         patch("subprocess.run") as mock_run:
+         patch("subprocess.run") as mock_run, \
+         patch("services.database.ResultPersistenceService") as mock_persistence:
         mock_run.return_value = MagicMock(stdout="ffmpeg version 6.0", returncode=0)
         with TestClient(main.app) as c:
             yield c

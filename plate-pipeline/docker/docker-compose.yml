@@ -131,11 +131,11 @@ services:
     command:
       - "--config.file=/etc/prometheus/prometheus.yml"
       - "--storage.tsdb.retention.time=7d"
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - plate-net
     restart: unless-stopped
-    depends_on:
-      - ingestion-api
 
   # GRAFANA
   grafana:

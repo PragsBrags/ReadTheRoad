@@ -41,7 +41,7 @@ def string_similarity(a: str, b: str) -> float:
 class AggregatedPlate:
     """Represents an aggregated plate detection across multiple frames."""
 
-    def __init__(self, text: str, confidence: float, bbox: list[int]):
+    def __init__(self, text: str, confidence: float, bbox: list[int], mode: str = "", llm_used: bool = False, original_ocr: str = ""):
         self.text = text
         self.confidence = confidence
         self.bbox = bbox
@@ -51,10 +51,13 @@ class AggregatedPlate:
         self.all_texts: list[str] = [text]
         self.all_confidences: list[float] = [confidence]
         self.source_frames: list[str] = []
+        self.mode = mode
+        self.llm_used = llm_used
+        self.original_ocrs: list[str] = [original_ocr] if original_ocr else []
 
     def merge(
         self, text: str, confidence: float, bbox: list[int],
-        frame_id: str = "",
+        frame_id: str = "", mode: str = "", llm_used: bool = False, original_ocr: str = "",
     ) -> None:
         """Merge a new detection into this aggregated plate."""
         self.all_texts.append(text)
@@ -63,6 +66,12 @@ class AggregatedPlate:
         self.last_seen = time.time()
         if frame_id:
             self.source_frames.append(frame_id)
+        if mode:
+            self.mode = mode
+        if llm_used:
+            self.llm_used = True
+        if original_ocr:
+            self.original_ocrs.append(original_ocr)
 
         # Confidence-weighted text selection
         if confidence > self.confidence:
@@ -97,7 +106,7 @@ class AggregatedPlate:
 
     def to_dict(self) -> dict[str, Any]:
         """Convert to serializable dictionary."""
-        return {
+        res = {
             "text": self.weighted_text,
             "confidence": self.average_confidence,
             "best_single_confidence": self.confidence,
@@ -108,6 +117,13 @@ class AggregatedPlate:
             "all_variants": list(set(self.all_texts)),
             "source_frames": self.source_frames,
         }
+        if self.mode:
+            res["mode"] = self.mode
+        if self.llm_used:
+            res["llm_used"] = self.llm_used
+        if self.original_ocrs:
+            res["original_ocr"] = list(set(self.original_ocrs))[0]
+        return res
 
 
 # AGGREGATION SERVICE
@@ -192,6 +208,9 @@ class AggregationService:
             text = plate.get("text") or ""
             confidence = plate.get("confidence", 0.0)
             bbox = plate.get("bbox", [0, 0, 0, 0])
+            mode = plate.get("mode", "")
+            llm_used = plate.get("llm_used", False)
+            original_ocr = plate.get("original_ocr", "")
 
             # Skip low-confidence detections
             if confidence < self._min_confidence:
@@ -205,12 +224,12 @@ class AggregationService:
                 if text and compare_text:
                     sim = string_similarity(text, compare_text)
                     if sim >= self._dedup_threshold:
-                        agg.merge(text, confidence, bbox, frame_id=frame_id)
+                        agg.merge(text, confidence, bbox, frame_id=frame_id, mode=mode, llm_used=llm_used, original_ocr=original_ocr)
                         merged = True
                         break
 
             if not merged:
-                agg = AggregatedPlate(text, confidence, bbox)
+                agg = AggregatedPlate(text, confidence, bbox, mode=mode, llm_used=llm_used, original_ocr=original_ocr)
                 if frame_id:
                     agg.source_frames.append(frame_id)
                 self._windows[job_id].append(agg)

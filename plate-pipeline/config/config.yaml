@@ -57,7 +57,7 @@ frame_sampler:
 # INFERENCE CONFIGURATION
 # ---------------------------------------------------------------------------
 inference:
-  mode: yolo_ocr # Active mode: yolo_only | ocr_only | yolo_ocr | yolo_ocr_llm | direct_llm
+  mode: direct_llm # Active mode: yolo_only | ocr_only | yolo_ocr | yolo_ocr_llm | direct_llm
 
   modes:
     yolo_only:
@@ -77,7 +77,7 @@ inference:
       description: "YOLO+OCR with LLM correction for ambiguous chars"
 
     direct_llm:
-      enabled: false
+      enabled: true
       description: "Direct LLM vision inference on cropped plates"
 
 # ---------------------------------------------------------------------------
@@ -112,8 +112,8 @@ ocr:
 # LLM CONFIGURATION
 # ---------------------------------------------------------------------------
 llm:
-  enabled: false
-  provider: openai # openai | anthropic | ollama
+  enabled: true
+  provider: ollama # openai | anthropic | ollama
   mode: gated # gated | always | disabled
   max_calls_per_job: 1
   fallback_to_ocr: true
@@ -131,7 +131,7 @@ llm:
     max_tokens: 100
 
   ollama:
-    model: llava
+    model: glm-ocr:q8_0
     base_url: http://localhost:11434
 
   circuit_breaker:

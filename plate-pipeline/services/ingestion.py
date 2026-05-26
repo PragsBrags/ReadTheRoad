@@ -72,6 +72,7 @@ class IngestResponse(BaseModel):
     inference_mode: str = ""
     processing_mode: str = ""  # "local" | "distributed"
     message: str = ""
+    timings: Optional[dict[str, float]] = None
 
 
 class StreamStatus(BaseModel):
@@ -242,6 +243,7 @@ class IngestionService:
                     inference_mode=self._config.inference.mode.value,
                     processing_mode=processing_mode,
                     message=f"Job queued for distributed processing. {len(sampled)} frames dispatched.",
+                    timings=None,
                 )
 
             # 5) Aggregate results (multi-frame dedup + confidence voting)
@@ -280,6 +282,11 @@ class IngestionService:
                     )
                 )
 
+            # Calculate total timings across all results
+            total_detection_ms = sum(r.get("timings", {}).get("detection_ms", 0.0) for r in inference_results)
+            total_ocr_ms = sum(r.get("timings", {}).get("ocr_ms", 0.0) for r in inference_results)
+            total_llm_ms = sum(r.get("timings", {}).get("llm_ms", 0.0) for r in inference_results)
+
             return IngestResponse(
                 job_id=job_id,
                 source=filename,
@@ -295,6 +302,11 @@ class IngestionService:
                     f"{len(sampled)} frames in {elapsed:.0f}ms "
                     f"({processing_mode})"
                 ),
+                timings={
+                    "detection_ms": total_detection_ms,
+                    "ocr_ms": total_ocr_ms,
+                    "llm_ms": total_llm_ms,
+                },
             )
 
         except HTTPException:
@@ -334,6 +346,7 @@ class IngestionService:
                 status="streaming",
                 processing_mode=self._dispatcher.mode,
                 message="Continuous stream started",
+                timings=None,
             )
         else:
             return await self._process_stream_once(stream)
@@ -387,6 +400,7 @@ class IngestionService:
                     inference_mode=self._config.inference.mode.value,
                     processing_mode=processing_mode,
                     message=f"Stream queued for distributed processing. {len(sampled)} frames dispatched.",
+                    timings=None,
                 )
 
             all_plates: list[dict[str, Any]] = []
@@ -411,6 +425,11 @@ class IngestionService:
                 self._metrics.record_ingestion_latency(elapsed / 1000)
                 self._metrics.increment_frames_processed(len(sampled))
 
+            # Calculate total timings across all results
+            total_detection_ms = sum(r.get("timings", {}).get("detection_ms", 0.0) for r in inference_results)
+            total_ocr_ms = sum(r.get("timings", {}).get("ocr_ms", 0.0) for r in inference_results)
+            total_llm_ms = sum(r.get("timings", {}).get("llm_ms", 0.0) for r in inference_results)
+
             return IngestResponse(
                 job_id=stream.stream_id,
                 source=stream.source,
@@ -422,6 +441,11 @@ class IngestionService:
                 inference_mode=self._config.inference.mode.value,
                 processing_mode=processing_mode,
                 message=f"{len(all_plates)} plates in {elapsed:.0f}ms ({processing_mode})",
+                timings={
+                    "detection_ms": total_detection_ms,
+                    "ocr_ms": total_ocr_ms,
+                    "llm_ms": total_llm_ms,
+                },
             )
 
         except Exception as e:

@@ -13,8 +13,8 @@
 #   - Redis running: brew services start redis
 #
 # Usage:
-#   ./scripts/local.sh           # Start API server
-#   ./scripts/local.sh --reload  # Start with auto-reload
+#   ./scripts/local_simple.sh [<mode>]           # e.g. direct_llm, yolo_ocr, yolo_only, ocr_only, yolo_ocr_llm
+#   ./scripts/local_simple.sh [<mode>] --reload  # Start with auto-reload
 
 set -euo pipefail
 
@@ -23,8 +23,17 @@ PROJECT_DIR="$(cd "$SCRIPT_DIR/.." && pwd)"
 
 cd "$PROJECT_DIR"
 
-# Use local config (localhost URLs)
-export PLATE_PIPELINE_CONFIG="$PROJECT_DIR/config/config.local.yaml"
+# Allow selecting a specific configuration mode
+CONFIG_MODE="${1:-local}"
+if [[ "$CONFIG_MODE" =~ ^(yolo_only|ocr_only|yolo_ocr|yolo_ocr_llm|direct_llm|local)$ ]]; then
+    # Shift so subsequent args (e.g., --reload) are passed directly to uvicorn
+    shift
+else
+    # Default back to standard config.local.yaml if no valid mode specified
+    CONFIG_MODE="local"
+fi
+
+export PLATE_PIPELINE_CONFIG="$PROJECT_DIR/config/config.${CONFIG_MODE}.yaml"
 
 echo "============================================"
 echo "  PLATE PIPELINE — LOCAL MODE"

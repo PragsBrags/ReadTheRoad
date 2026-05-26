@@ -1,0 +1,167 @@
+# LOCAL DEVELOPMENT CONFIG — yolo_ocr mode
+system:
+  mode: development
+
+video_ingestion:
+  sources:
+    - file
+    - rtsp
+    - rtmp
+  max_streams: 20
+  upload_dir: /tmp/plate-pipeline/uploads
+  frame_output_dir: /tmp/plate-pipeline/frames
+
+preprocessing:
+  enabled: false
+  min_plate_width: 100
+  enhance_image_ocr: true
+
+debug:
+  save_intermediate_images: false
+  output_dir: /tmp/plate-pipeline/debug
+
+decoder:
+  engine: ffmpeg
+  ffmpeg:
+    binary_path: ffmpeg
+    frame_filter: "eq(pict_type,P)"
+    vsync: vfr
+    output_format: jpg
+    output_quality: 2
+  hardware_acceleration: false
+  timeout_seconds: 300
+
+frame_sampler:
+  strategy: motion_sharpness
+  fixed_fps: 2
+  motion_threshold: 0.2
+  nyquist_event_frequency: 1.0
+  downscale_factor: 0.5
+  motion_area_threshold: 100
+  cooldown_frames: 10
+  warmup_frames: 100
+
+inference:
+  mode: yolo_ocr
+
+  modes:
+    yolo_only:
+      enabled: true
+      description: "Detect license plate bounding boxes only"
+    ocr_only:
+      enabled: true
+      description: "OCR on pre-cropped plate images"
+    yolo_ocr:
+      enabled: true
+      description: "Detect plate → crop → OCR (default)"
+    yolo_ocr_llm:
+      enabled: false
+      description: "YOLO+OCR with LLM correction"
+    direct_llm:
+      enabled: false
+      description: "Direct LLM vision inference"
+
+model_registry:
+  yolo:
+    path: ./models/plate.pt
+    confidence_threshold: 0.1
+    iou_threshold: 0.1
+    device: cpu
+    imgsz: 640
+    selection_policy: all
+
+ocr:
+  engine: paddleocr
+  enabled: true
+  easyocr:
+    languages:
+      - en
+    gpu: false
+    detail: 1
+  paddleocr:
+    lang: en
+    use_angle_cls: true
+    use_gpu: false
+
+llm:
+  enabled: false
+  provider: openai
+  mode: gated
+  max_calls_per_job: 1
+  fallback_to_ocr: true
+  timeout_seconds: 30
+  openai:
+    model: gpt-4o-mini
+    api_key_env: OPENAI_API_KEY
+    max_tokens: 100
+    temperature: 0.1
+  ollama:
+    model: llava
+    base_url: http://localhost:11434
+  circuit_breaker:
+    failure_threshold: 5
+    recovery_timeout_seconds: 60
+    half_open_max_calls: 2
+
+dspy:
+  enabled: false
+  prompt_compression: true
+  optimizer: bootstrap_fewshot
+  max_bootstrapped_demos: 4
+  max_labeled_demos: 16
+  lm_model: openai/gpt-4o-mini
+
+queue:
+  broker: rabbitmq
+  broker_url: amqp://guest:guest@localhost:5672//
+  prefetch_count: 10
+  frame_queue: plate_frames
+  result_queue: plate_results
+  max_retries: 3
+  retry_delay_seconds: 5
+
+workers:
+  celery:
+    broker_url: amqp://guest:guest@localhost:5672//
+    result_backend: redis://localhost:6379/0
+    concurrency: 2
+    task_serializer: json
+    result_serializer: json
+    accept_content:
+      - json
+    task_acks_late: true
+    worker_prefetch_multiplier: 1
+    autoscale:
+      min: 2
+      max: 16
+
+redis:
+  enabled: true
+  url: redis://localhost:6379/0
+  ttl_seconds: 300
+  deduplication: true
+  dedup_ttl_seconds: 60
+  key_prefix: plate_pipeline
+
+database:
+  enabled: true
+  url: postgresql+psycopg://plate_user:plate_pass@localhost:5432/plate_pipeline
+  echo: false
+  create_tables: true
+  pool_size: 5
+  max_overflow: 10
+
+aggregation:
+  window_ms: 3000
+  dedup_threshold: 0.85
+  min_confidence: 0.4
+  max_results_per_window: 50
+
+monitoring:
+  prometheus:
+    enabled: true
+    port: 8000
+    path: /metrics
+  grafana:
+    enabled: true
+    port: 3000

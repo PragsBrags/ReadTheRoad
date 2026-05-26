@@ -94,9 +94,9 @@ class DetectionStage(Stage):
                 })
         data["plate_crops"] = crops
 
-        logger.debug(
-            f"Detection: {len(detections)} plates, "
-            f"{data['detection_time_ms']:.1f}ms"
+        logger.info(
+            f"DetectionStage: Found {len(detections)} plates in {data['detection_time_ms']:.1f}ms "
+            f"(Confidences: {[det['confidence'] for det in detections]})"
         )
         return data
 
@@ -153,9 +153,9 @@ class OCRStage(Stage):
         data["ocr_results"] = ocr_results
         data["ocr_time_ms"] = (time.time() - start) * 1000
 
-        logger.debug(
-            f"OCR: {len(ocr_results)} plates read, "
-            f"{data['ocr_time_ms']:.1f}ms"
+        logger.info(
+            f"OCRStage: Extracted {len(ocr_results)} plates in {data['ocr_time_ms']:.1f}ms "
+            f"(Texts: {[res['text'] for res in ocr_results]})"
         )
         return data
 
@@ -250,7 +250,10 @@ class LLMCorrectionStage(Stage):
         data["llm_corrections"] = corrections
         data["llm_time_ms"] = (time.time() - start) * 1000
 
-        logger.debug(f"LLM: {len(corrections)} corrections, {data['llm_time_ms']:.1f}ms")
+        logger.info(
+            f"LLMCorrectionStage: Processed {len(corrections)} corrections in {data['llm_time_ms']:.1f}ms "
+            f"(Original -> Corrected: {[(c['original_text'], c['corrected_text']) for c in corrections]})"
+        )
         return data
 
 
@@ -305,4 +308,8 @@ class DirectLLMStage(Stage):
 
         data["direct_llm_results"] = results
         data["direct_llm_time_ms"] = (time.time() - start) * 1000
+        logger.info(
+            f"DirectLLMStage: Extracted {len(results)} plates directly in {data['direct_llm_time_ms']:.1f}ms "
+            f"(Texts: {[res['text'] for res in results]})"
+        )
         return data

@@ -68,7 +68,7 @@ frame_sampler:
 # INFERENCE CONFIGURATION
 # ---------------------------------------------------------------------------
 inference:
-  mode: yolo_ocr
+  mode: direct_llm
 
   modes:
     yolo_only:
@@ -84,7 +84,7 @@ inference:
       enabled: false
       description: "YOLO+OCR with LLM correction"
     direct_llm:
-      enabled: false
+      enabled: true
       description: "Direct LLM vision inference"
 
 # ---------------------------------------------------------------------------
@@ -119,8 +119,8 @@ ocr:
 # LLM CONFIGURATION
 # ---------------------------------------------------------------------------
 llm:
-  enabled: false
-  provider: openai
+  enabled: true
+  provider: ollama
   mode: gated
   max_calls_per_job: 1
   fallback_to_ocr: true
@@ -131,7 +131,7 @@ llm:
     max_tokens: 100
     temperature: 0.1
   ollama:
-    model: llava
+    model: glm-ocr:q8_0
     base_url: http://localhost:11434
   circuit_breaker:
     failure_threshold: 5
