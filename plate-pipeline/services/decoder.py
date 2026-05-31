@@ -265,37 +265,66 @@ class FFmpegDecoder:
             stderr=asyncio.subprocess.PIPE,
         )
 
-        _, stderr = await asyncio.wait_for(
-            process.communicate(),
-            timeout=self._config.timeout_seconds,
-        )
-
-        if process.returncode != 0:
-            logger.warning(f"FFmpeg stderr: {stderr.decode()[:500]}")
-
-        elapsed_ms = (time.time() - start_time) * 1000
         ext = self._config.ffmpeg.output_format
-        frame_files = sorted(Path(output_dir).glob(f"frame_*.{ext}"))
+        yielded_files: set[str] = set()
+        frame_index = 0
+        stderr_chunks: list[bytes] = []
 
-        for idx, frame_path in enumerate(frame_files):
-            frame_bytes = frame_path.read_bytes()
-            yield FrameData(
-                frame_id=str(uuid.uuid4()),
-                source=source,
-                frame_bytes=frame_bytes,
-                frame_index=idx,
-                timestamp_ms=0.0,
-                extraction_time_ms=elapsed_ms / max(len(frame_files), 1),
-                metadata={
-                    "file_path": str(frame_path),
-                    "file_size": len(frame_bytes),
-                },
+        async def _drain_stderr() -> None:
+            if process.stderr is None:
+                return
+
+            while True:
+                chunk = await process.stderr.read(4096)
+                if not chunk:
+                    break
+                stderr_chunks.append(chunk)
+
+        stderr_task = asyncio.create_task(_drain_stderr())
+
+        try:
+            while True:
+                frame_files = sorted(Path(output_dir).glob(f"frame_*.{ext}"))
+
+                for frame_path in frame_files:
+                    if frame_path.name in yielded_files:
+                        continue
+
+                    frame_bytes = frame_path.read_bytes()
+                    yielded_files.add(frame_path.name)
+                    yield FrameData(
+                        frame_id=str(uuid.uuid4()),
+                        source=source,
+                        frame_bytes=frame_bytes,
+                        frame_index=frame_index,
+                        timestamp_ms=0.0,
+                        extraction_time_ms=(time.time() - start_time) * 1000,
+                        metadata={
+                            "file_path": str(frame_path),
+                            "file_size": len(frame_bytes),
+                        },
+                    )
+                    frame_index += 1
+
+                if process.returncode is not None:
+                    break
+
+                await asyncio.sleep(0.25)
+
+            await asyncio.wait_for(stderr_task, timeout=1)
+
+            if process.returncode != 0:
+                stderr = b"".join(stderr_chunks).decode(errors="replace")
+                logger.warning(f"FFmpeg stderr: {stderr[:500]}")
+
+            elapsed_ms = (time.time() - start_time) * 1000
+            logger.info(
+                f"Async extracted {len(yielded_files)} frames from '{source}' "
+                f"in {elapsed_ms:.1f}ms"
             )
-
-        logger.info(
-            f"Async extracted {len(frame_files)} frames from '{source}' "
-            f"in {elapsed_ms:.1f}ms"
-        )
+        finally:
+            if not stderr_task.done():
+                stderr_task.cancel()
 
     def extract_frames_piped(
         self,

@@ -6,7 +6,6 @@
 #
 # Example:
 #   ./scripts/start_rtsp_streams.sh ./samples http://localhost:8000
-
 set -euo pipefail
 
 VIDEO_DIR="${1:-./samples}"
@@ -17,31 +16,73 @@ if ! command -v docker &> /dev/null; then
     echo "ERROR: Docker is required to run the RTSP server."
     exit 1
 fi
-
 if ! command -v ffmpeg &> /dev/null; then
     echo "ERROR: FFmpeg is required to stream the video files."
     exit 1
 fi
 
-# 1. Start MediaMTX container if not already running
-if [ ! "$(docker ps -q -f name=mediamtx)" ]; then
-    if [ "$(docker ps -aq -f status=exited -f name=mediamtx)" ]; then
-        echo "Starting existing mediamtx container..."
-        docker start mediamtx
-    else
-        echo "Launching mediamtx RTSP server on port 8554..."
-        docker run -d --name mediamtx -p 8554:8554 -p 1935:1935 -p 8888:8888 bluenviron/mediamtx
-    fi
-else
-    echo "MediaMTX RTSP server is already running."
+# 1. Write a minimal mediamtx config with no auth and no timeouts
+MEDIAMTX_CONFIG="/tmp/mediamtx.yml"
+cat > "$MEDIAMTX_CONFIG" <<'EOF'
+authMethod: internal
+
+authInternalUsers:
+  - user: any
+    pass:
+    permissions:
+      - action: publish
+      - action: read
+      - action: api
+      - action: metrics
+
+paths:
+  all:
+
+readTimeout: 24h
+writeTimeout: 24h
+writeQueueSize: 512
+
+api: yes
+apiAddress: :9997
+
+EOF
+
+# 2. Remove any existing mediamtx container so fresh config always applies
+if [ "$(docker ps -aq -f name=mediamtx)" ]; then
+    echo "Removing existing mediamtx container to apply fresh config..."
+    docker rm -f mediamtx
 fi
 
-# Wait for MediaMTX to start up
-sleep 2
+# 3. Start MediaMTX with the config mounted
+echo "Launching mediamtx RTSP server on port 8554 (no auth, no timeouts)..."
+docker run -d --name mediamtx \
+    -p 8554:8554 \
+    -p 1935:1935 \
+    -p 8888:8888 \
+    -p 9997:9997 \
+    -v "$MEDIAMTX_CONFIG:/mediamtx.yml" \
+    bluenviron/mediamtx
 
-# 2. Iterate through videos in the directory
+# 4. Wait until MediaMTX API responds with 200
+echo "Waiting for MediaMTX to be ready..."
+for i in $(seq 1 30); do
+    http_code=$(curl -s -o /dev/null -w "%{http_code}" \
+        "http://localhost:9997/v3/config/global/get")
+    if [ "$http_code" = "200" ]; then
+        echo "MediaMTX is ready (${i}s)."
+        break
+    fi
+    if [ "$i" -eq 30 ]; then
+        echo "ERROR: MediaMTX did not become ready in 30 seconds."
+        echo "Check: docker logs mediamtx"
+        exit 1
+    fi
+    sleep 1
+done
+
+# 5. Scan for videos
 echo "Scanning for videos in $VIDEO_DIR..."
-# Supported extensions
+
 shopt -s nullglob
 VIDEOS=("$VIDEO_DIR"/*.mp4 "$VIDEO_DIR"/*.mov "$VIDEO_DIR"/*.mkv "$VIDEO_DIR"/*.avi "$VIDEO_DIR"/*.webm)
 
@@ -50,64 +91,95 @@ if [ ${#VIDEOS[@]} -eq 0 ]; then
     exit 0
 fi
 
-# Track spawned process PIDs so they can be cleaned up
+echo "Found ${#VIDEOS[@]} video(s)."
+
+# 6. Cleanup handler
 declare -a PIDS
 
-# Cleanup background streams on script exit
 cleanup() {
     echo ""
     echo "Stopping all RTSP streams..."
     for pid in "${PIDS[@]}"; do
         kill "$pid" 2>/dev/null || true
     done
+    rm -f "$MEDIAMTX_CONFIG"
     exit 0
 }
 trap cleanup SIGINT SIGTERM EXIT
 
+# 7. Start one FFmpeg stream per video (with auto-restart loop)
 for video_path in "${VIDEOS[@]}"; do
     filename=$(basename -- "$video_path")
-    # Clean up name for URL path (replace spaces/special chars)
     stream_path="${filename%.*}"
-    stream_path="${stream_path// /_}" # replace spaces with underscores
-    
+    stream_path="${stream_path// /_}"
+
     rtsp_url="rtsp://localhost:8554/$stream_path"
-    
+    log_file="/tmp/ffmpeg_${stream_path}.log"
+
     echo "----------------------------------------"
-    echo "Streaming: $filename"
-    echo "RTSP URL : $rtsp_url"
-    
-    # Launch ffmpeg stream in background looping infinitely
-    ffmpeg -re -stream_loop -1 -i "$video_path" -c copy -f rtsp "$rtsp_url" &>/dev/null &
-    ffmpeg_pid=$!
-    PIDS+=("$ffmpeg_pid")
-    
-    # 3. Optionally register the stream with the running pipeline
+    echo "Streaming : $filename"
+    echo "RTSP URL  : $rtsp_url"
+    echo "Log       : $log_file"
+
+    (
+        while true; do
+            echo "[$(date '+%H:%M:%S')] Starting stream: $rtsp_url" >> "$log_file"
+            ffmpeg -re \
+                   -stream_loop -1 \
+                   -i "$video_path" \
+                   -c copy \
+                   -avoid_negative_ts make_zero \
+                   -fflags +genpts \
+                   -rtsp_transport tcp \
+                   -f rtsp \
+                   "$rtsp_url" \
+                   >> "$log_file" 2>&1 && true
+            exit_code=$?
+            echo "[$(date '+%H:%M:%S')] Stream exited (code $exit_code), restarting in 2s..." >> "$log_file"
+            sleep 2
+        done
+    ) &
+
+    loop_pid=$!
+    PIDS+=("$loop_pid")
+    echo "PID       : $loop_pid"
+
+    sleep 1
+
+    # 8. Optionally register the stream with the running pipeline
     if [ -n "$PIPELINE_URL" ]; then
-        echo "Registering stream with pipeline at $PIPELINE_URL..."
-        
-        # Determine URL for the pipeline depending on whether it is running in docker or local
-        pipeline_stream_url="rtsp://localhost:8554/$stream_path"
-        
-        # Check if pipeline URL responds
-        if curl -s -f "$PIPELINE_URL/status" &>/dev/null; then
+        echo "Registering with pipeline at $PIPELINE_URL..."
+
+        if curl -sf "$PIPELINE_URL/status" &>/dev/null; then
             curl -s -X POST "$PIPELINE_URL/ingest/stream" \
                  -H "Content-Type: application/json" \
                  -d "{
-                   \"url\": \"$pipeline_stream_url\",
+                   \"url\": \"$rtsp_url\",
                    \"stream_id\": \"$stream_path\",
                    \"continuous\": true
                  }" | jq '.' || echo "  (Registered stream: $stream_path)"
         else
-            echo "  WARNING: Pipeline API at $PIPELINE_URL is unreachable. Skipping automatic ingestion registration."
+            echo "  WARNING: Pipeline at $PIPELINE_URL unreachable. Skipping registration."
         fi
     fi
 done
 
 echo "----------------------------------------"
-echo "All streams started successfully! Press Ctrl+C to stop all streams."
+echo "All streams running. Press Ctrl+C to stop."
+echo ""
+echo "Connect with:"
+for video_path in "${VIDEOS[@]}"; do
+    filename=$(basename -- "$video_path")
+    stream_path="${filename%.*}"
+    stream_path="${stream_path// /_}"
+    echo "  rtsp://localhost:8554/$stream_path"
+done
+echo ""
+echo "Monitor logs:"
+echo "  tail -f /tmp/ffmpeg_*.log"
 echo ""
 
-# Keep script running to maintain background streams
+# 9. Keep alive
 while true; do
-    sleep 1
+    sleep 10
 done
