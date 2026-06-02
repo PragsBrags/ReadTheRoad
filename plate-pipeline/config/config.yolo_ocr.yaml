@@ -14,6 +14,7 @@ video_ingestion:
 preprocessing:
   enabled: false
   min_plate_width: 100
+  plate_crop_padding_ratio: 0.15
   enhance_image_ocr: true
 
 debug:
@@ -71,7 +72,7 @@ model_registry:
     selection_policy: all
 
 ocr:
-  engine: paddleocr
+  engine: easyocr
   enabled: true
   easyocr:
     languages:
