@@ -33,6 +33,7 @@ decoder:
 preprocessing:
   enabled: false
   min_plate_width: 100
+  plate_crop_padding_ratio: 0.15
   enhance_image_ocr: true
 
 #Debug preprocessed frames
@@ -44,7 +45,7 @@ debug:
 # FRAME SAMPLER
 # ---------------------------------------------------------------------------
 frame_sampler:
-  strategy: nyquist # fixed_fps | motion | hybrid | nyquist | motion_sharpness
+  strategy: motion_sharpness # fixed_fps | motion | hybrid | nyquist | motion_sharpness
   fixed_fps: 2
   motion_threshold: 0.2 # SSIM threshold for motion detection
   nyquist_event_frequency: 1.0 # Expected events per second
@@ -57,7 +58,7 @@ frame_sampler:
 # INFERENCE CONFIGURATION
 # ---------------------------------------------------------------------------
 inference:
-  mode: direct_llm # Active mode: yolo_only | ocr_only | yolo_ocr | yolo_ocr_llm | direct_llm
+  mode: yolo_ocr # Active mode: yolo_only | ocr_only | yolo_ocr | yolo_ocr_llm | direct_llm
 
   modes:
     yolo_only:
@@ -96,7 +97,7 @@ model_registry:
 # OCR CONFIGURATION
 # ---------------------------------------------------------------------------
 ocr:
-  engine: paddleocr # easyocr | paddleocr
+  engine: easyocr # easyocr | paddleocr
   enabled: true
   easyocr:
     languages:
@@ -112,7 +113,7 @@ ocr:
 # LLM CONFIGURATION
 # ---------------------------------------------------------------------------
 llm:
-  enabled: true
+  enabled: false
   provider: ollama # openai | anthropic | ollama
   mode: gated # gated | always | disabled
   max_calls_per_job: 1

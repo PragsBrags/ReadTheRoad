@@ -135,6 +135,7 @@ class OCRConfig(BaseModel):
 class PreprocessingConfig(BaseModel):
     enabled: bool = True
     min_plate_width: int = Field(default=100, ge=1)
+    plate_crop_padding_ratio: float = Field(default=0.15, ge=0, le=1)
     enhance_image_ocr: bool = True
 
 class DebugConfig(BaseModel):

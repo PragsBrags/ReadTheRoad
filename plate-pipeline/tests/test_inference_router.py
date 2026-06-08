@@ -79,6 +79,26 @@ class TestDetectionStage:
         result = stage.process({"image": np.zeros((100, 200, 3), dtype=np.uint8)})
         assert len(result["detections"]) == 1
 
+    def test_expands_plate_crop(self):
+        mock_det = MagicMock()
+        mock_det.detect.return_value = [
+            {"bbox": [30, 30, 70, 50], "confidence": 0.95, "class_name": "license_plate"}
+        ]
+        registry = MagicMock()
+        registry.detector = mock_det
+        config = PipelineConfig(
+            preprocessing={"enabled": False, "plate_crop_padding_ratio": 0.25}
+        )
+
+        result = DetectionStage(registry, config).process({
+            "image": np.zeros((100, 100, 3), dtype=np.uint8)
+        })
+
+        crop = result["plate_crops"][0]
+        assert crop["bbox"] == [30, 30, 70, 50]
+        assert crop["crop_bbox"] == [20, 25, 80, 55]
+        assert crop["image"].shape[:2] == (30, 60)
+
 
 class TestInferenceRouter:
     def test_pipelines_for_all_modes(self):

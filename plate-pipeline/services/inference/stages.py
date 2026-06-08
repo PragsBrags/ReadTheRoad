@@ -65,6 +65,19 @@ class DetectionStage(Stage):
         self._config = config if config is not None else load_config()
         self._config_debug = debug_config if debug_config is not None else self._config.debug
 
+    def _expand_bbox(self, image, bbox: list[int]) -> list[int]:
+        x1, y1, x2, y2 = bbox
+        h, w = image.shape[:2]
+        pad = self._config.preprocessing.plate_crop_padding_ratio
+        dx = int((x2 - x1) * pad)
+        dy = int((y2 - y1) * pad)
+        return [
+            max(0, x1 - dx),
+            max(0, y1 - dy),
+            min(w, x2 + dx),
+            min(h, y2 + dy),
+        ]
+
     def process(self, data: dict[str, Any]) -> dict[str, Any]:
         image = data.get("image")
         if image is None:
@@ -80,7 +93,7 @@ class DetectionStage(Stage):
         # Crop detected plates
         crops = []
         for det in detections:
-            x1, y1, x2, y2 = det["bbox"]
+            x1, y1, x2, y2 = self._expand_bbox(image, det["bbox"])
             crop = image[y1:y2, x1:x2]
             if crop.size > 0:
                 if self._config.preprocessing.enabled:
@@ -91,6 +104,7 @@ class DetectionStage(Stage):
                 crops.append({
                     "image": crop,
                     "bbox": det["bbox"],
+                    "crop_bbox": [x1, y1, x2, y2],
                     "confidence": det["confidence"],
                 })
         data["plate_crops"] = crops
