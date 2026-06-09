@@ -32,6 +32,8 @@ class ResultRepository:
         row.inference_mode = data.inference_mode
         row.processing_mode = data.processing_mode
         row.created_at = data.created_at
+        row.frames_extracted = data.frames_extracted
+        row.frames_sampled = data.frames_sampled
         row.status = "completed"
 
     def failed_job(self, db: Session, data: JobFailedUpdate) -> None:
