@@ -13,9 +13,19 @@ class IngestionDetails(Base):
     job_id: Mapped[str] = mapped_column(String(64), unique=True, index=True, nullable=False)
     source: Mapped[str] = mapped_column(Text)
 
+    status: Mapped[str] = mapped_column(String(32), default="started", nullable=False)
+
     inference_mode: Mapped[str | None] = mapped_column(String(64), nullable=True)
     processing_mode: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
+    video_total_fps: Mapped[int] = mapped_column(Integer, default=0)
+    video_width: Mapped[int] = mapped_column(Integer, default=0)
+    video_height: Mapped[int] = mapped_column(Integer, default=0)
+    frames_extracted: Mapped[int] = mapped_column(Integer, default=0)
+    frames_sampled: Mapped[int] = mapped_column(Integer, default=0)
+
+    detection_model: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
     completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
@@ -49,6 +59,11 @@ class PlateDetection(Base):
     frame_result_id: Mapped[int | None] = mapped_column(ForeignKey("frame_results.id"), nullable=True)
     frame_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
 
+    bbox_x1: Mapped[float] = mapped_column(Float, default=0.0)
+    bbox_x2: Mapped[float] = mapped_column(Float, default=0.0)
+    bbox_y1: Mapped[float] = mapped_column(Float, default=0.0)
+    bbox_y2: Mapped[float] = mapped_column(Float, default=0.0)
+
     plate_text: Mapped[str | None] = mapped_column(String(64), nullable=True)
     vehicle_class: Mapped[str] = mapped_column(String(64), nullable=True)
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
@@ -57,3 +72,19 @@ class PlateDetection(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())
 
     frame_result: Mapped[FrameResult | None] = relationship(back_populates="plates")
+
+class ResourceLogging(Base):
+    __tablename__ = "logging_resource"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    job_id: Mapped[str] = mapped_column(String(64), ForeignKey("ingestion_details.job_id"), index=True)
+
+    cpu_percent: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
+    ram_usage: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
+
+    gpu_percent: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
+    gpu_ram_usage: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
+    gpu_power_usage: Mapped[float] = mapped_column(Float, default=0.0, nullable=True)
+    gpu_name: Mapped[str | None] = mapped_column(String(64), nullable=True)
+
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.now())

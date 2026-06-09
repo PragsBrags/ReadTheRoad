@@ -26,6 +26,7 @@ from services.monitoring import MetricsCollector
 from services.sampler import FrameSampler
 from services.task_dispatcher import TaskDispatcher
 from services.database.schema import JobStartedCreate, JobCompletedUpdate, JobFailedUpdate
+from services.benchmarking.resource_monitor import ResourceMonitor
 
 logger = logging.getLogger(__name__)
 
@@ -158,6 +159,7 @@ class IngestionService:
         """
         job_id = str(uuid.uuid4())
         start = time.time()
+        monitor = None
 
         # --- Validate file type ---
         filename = file.filename or "upload"
@@ -168,6 +170,7 @@ class IngestionService:
                     job_id=job_id,
                     source=filename,
                     inference_mode=self._config.inference.mode.value,
+                    detection_model=self._config.model_registry.yolo.path,
                 )
             )
 
@@ -204,6 +207,15 @@ class IngestionService:
         logger.info(f"[{job_id}] Saved upload: {file_path} ({file_size} bytes)")
 
         try:
+            
+            monitor = ResourceMonitor(
+                job_id=job_id,
+                interval=1.0,
+                persistence=self._persistence if self._persistence is not None and self._persistence.enabled else None,
+                enabled=True,
+            )
+            monitor.start() 
+
             # 1) FFmpeg decode (MANDATORY)
             frames = self._decoder.extract_frames_sync(
                 source=str(file_path),
@@ -279,6 +291,8 @@ class IngestionService:
                         job_id=job_id,
                         inference_mode=self._config.inference.mode.value,
                         processing_mode=processing_mode,
+                        frames_extracted=len(frames),
+                        frames_sampled=len(sampled),
                     )
                 )
 
@@ -318,6 +332,10 @@ class IngestionService:
         except Exception as e:
             logger.error(f"[{job_id}] Ingestion failed: {e}")
             raise HTTPException(status_code=500, detail=str(e))
+        
+        finally:
+            if monitor:
+                monitor.stop()
 
     async def ingest_stream(self, request: IngestStreamRequest) -> IngestResponse:
         """Start ingesting an RTSP/RTMP stream."""
@@ -354,17 +372,26 @@ class IngestionService:
     async def _process_stream_once(self, stream: ActiveStream) -> IngestResponse:
         """Process a stream once (non-continuous)."""
         start = time.time()
-
+        monitor = None
         if self._persistence:
             self._persistence.save_job_started(
                 JobStartedCreate(
                     job_id=stream.stream_id,
                     source=stream.source,
                     inference_mode=self._config.inference.mode.value,
+                    detection_model=self._config.model_registry.yolo.path,
                 )
             )
 
         try:
+
+            monitor = ResourceMonitor(
+                job_id=stream.stream_id,
+                interval=1.0,
+                persistence=self._persistence,
+                enabled=self._persistence is not None and self._persistence.enabled,
+            )
+            monitor.start()
             frames: list[FrameData] = []
             async for frame in self._decoder.extract_frames(
                 source=stream.source,
@@ -461,6 +488,9 @@ class IngestionService:
             raise HTTPException(status_code=500, detail=str(e))
 
         finally:
+            if monitor:
+                monitor.stop()
+
             del self._active_streams[stream.stream_id]
             if self._metrics:
                 self._metrics.set_active_streams(len(self._active_streams))
@@ -475,6 +505,7 @@ class IngestionService:
                     job_id=stream.stream_id,
                     source=stream.source,
                     inference_mode=self._config.inference.mode.value,
+                    detection_model=self._config.model_registry.yolo.path,
                 )
             )
 

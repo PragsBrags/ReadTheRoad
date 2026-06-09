@@ -12,6 +12,7 @@ from services.database.schema import (
     JobFailedUpdate,
     FrameResultCreate,
     PlateDetectionCreate,
+    ResourceLoggingCreate,
 )
 
 logger = logging.getLogger(__name__)
@@ -50,6 +51,26 @@ class ResultPersistenceService:
 
         with self._manager.session() as db:
             self._repo.failed_job(db, job)
+
+    def save_resource_log(self, row: ResourceLoggingCreate) -> None:
+        if not self.enabled:
+            return
+        with self._manager.session() as db:
+            self._repo.save_resource_log(db, row)
+
+
+    def save_resource_logs(self, rows: list[ResourceLoggingCreate]) -> None:
+        if not self.enabled or not rows:
+            return
+        with self._manager.session() as db:
+            self._repo.save_resource_logs(db, rows)
+
+
+    def update_job_metrics(self, data: JobCompletedUpdate) -> None:
+        if not self.enabled:
+            return
+        with self._manager.session() as db:
+            self._repo.update_job_metrics(db, data)
 
     def save_frame_result(
     self,

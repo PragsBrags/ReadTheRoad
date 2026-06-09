@@ -5,8 +5,8 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from services.database.models import FrameResult, IngestionDetails, PlateDetection
-from services.database.schema import FrameResultCreate, JobCompletedUpdate, JobFailedUpdate, JobStartedCreate, PlateDetectionCreate
+from services.database.models import FrameResult, IngestionDetails, PlateDetection, ResourceLogging
+from services.database.schema import FrameResultCreate, JobCompletedUpdate, JobFailedUpdate, JobStartedCreate, PlateDetectionCreate, ResourceLoggingCreate
 
 class ResultRepository:
     def create_job(self, db: Session, data: JobStartedCreate) -> IngestionDetails:
@@ -18,6 +18,8 @@ class ResultRepository:
             job_id=data.job_id,
             source=data.source,
             inference_mode=data.inference_mode,
+            status=data.status,
+            detection_model=data.detection_model,
         )
         db.add(row)
         return row
@@ -30,7 +32,7 @@ class ResultRepository:
         row.inference_mode = data.inference_mode
         row.processing_mode = data.processing_mode
         row.created_at = data.created_at
-        row.completed_at = data.completed_at
+        row.status = "completed"
 
     def failed_job(self, db: Session, data: JobFailedUpdate) -> None:
         row = db.query(IngestionDetails).filter_by(job_id=data.job_id).one_or_none()
@@ -38,7 +40,23 @@ class ResultRepository:
             return
         
         row.created_at = data.created_at
-        row.completed_at = data.completed_at
+        row.status = "failed"
+
+    def save_resource_log(self, db: Session, data: ResourceLoggingCreate) -> None:
+        db.add(ResourceLogging(**data.model_dump()))
+
+
+    def save_resource_logs(self, db: Session, rows: list[ResourceLoggingCreate]) -> None:
+        db.add_all(ResourceLogging(**row.model_dump()) for row in rows)
+
+
+    def update_job_metrics(self, db: Session, data: JobCompletedUpdate) -> None:
+        row = db.query(IngestionDetails).filter_by(job_id=data.job_id).one_or_none()
+        if row is None:
+            return
+
+        for key, value in data.model_dump(exclude={"job_id"}).items():
+            setattr(row, key, value)
 
     def save_frame(
     self,

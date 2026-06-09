@@ -10,12 +10,22 @@ class JobStartedCreate(BaseModel):
     job_id: str
     source: str
     inference_mode: str | None = None
+    status: str = "started"
+    detection_model: str | None = None
 
 
 class JobCompletedUpdate(BaseModel):
     job_id: str
     inference_mode: str | None = None
     processing_mode: str | None = None
+
+    video_total_frames: int = 0
+    video_width: int = 0
+    video_height: int = 0
+
+    frames_extracted: int = 0
+    frames_sampled: int = 0
+
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     completed_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
 
@@ -53,3 +63,12 @@ class FrameResultCreate(BaseModel):
     detection_time_ms: float = 0.0
     ocr_time_ms: float = 0.0
     llm_time_ms: float = 0.0
+
+class ResourceLoggingCreate(BaseModel):
+    job_id: str
+    cpu_percent: float | None = None
+    ram_usage: float | None = None
+    gpu_percent: float | None = None
+    gpu_ram_usage: float | None = None
+    gpu_power_usage: float | None = None
+    gpu_name: str | None = None
