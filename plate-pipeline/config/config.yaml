@@ -57,7 +57,7 @@ frame_sampler:
 # INFERENCE CONFIGURATION
 # ---------------------------------------------------------------------------
 inference:
-  mode: direct_llm # Active mode: yolo_only | ocr_only | yolo_ocr | yolo_ocr_llm | direct_llm
+  mode: yolo_ocr # Active mode: yolo_only | ocr_only | yolo_ocr | yolo_ocr_llm | direct_llm
 
   modes:
     yolo_only:
