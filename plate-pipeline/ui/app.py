@@ -18,9 +18,8 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# ──────────────────────────────────────────────
+
 # THEME / GLOBAL STYLES
-# ──────────────────────────────────────────────
 ACCENT = "#22D3EE"        # cyan accent
 ACCENT_DIM = "#0E7490"
 BG = "#0B0F14"            # near-black terminal bg
@@ -220,14 +219,25 @@ div[data-testid="stMetricValue"] {{
 .kv-row {{
     display: flex;
     justify-content: space-between;
+    gap: 1rem;
     padding: 0.32rem 0;
     border-bottom: 1px dashed {PANEL_BORDER};
     font-family: 'JetBrains Mono', monospace;
     font-size: 0.82rem;
 }}
 .kv-row:last-child {{ border-bottom: none; }}
-.kv-key {{ color: {TEXT_DIM}; }}
-.kv-val {{ color: {TEXT}; font-weight: 600; }}
+.kv-key {{ color: {TEXT_DIM}; flex-shrink: 0; }}
+.kv-val {{ color: {TEXT}; font-weight: 600; text-align: right; word-break: break-word; }}
+
+.kv-row-stack {{
+    padding: 0.4rem 0;
+    border-bottom: 1px dashed {PANEL_BORDER};
+    font-family: 'JetBrains Mono', monospace;
+    font-size: 0.82rem;
+}}
+.kv-row-stack:last-child {{ border-bottom: none; }}
+.kv-row-stack .kv-key {{ display: block; margin-bottom: 0.3rem; }}
+.kv-row-stack .kv-val {{ display: block; text-align: left; color: {TEXT}; font-weight: 600; line-height: 1.6; word-break: break-word; }}
 
 /* Buttons */
 .stButton > button, .stFormSubmitButton > button {{
@@ -333,7 +343,10 @@ def pill(text, kind="neutral"):
 
 
 def kv_row(key, val):
-    return f'<div class="kv-row"><span class="kv-key">{key}</span><span class="kv-val">{val}</span></div>'
+    val_str = str(val)
+    if len(val_str) > 28 or "\n" in val_str:
+        return f'<div class="kv-row-stack"><span class="kv-key">{key}</span><span class="kv-val">{val_str}</span></div>'
+    return f'<div class="kv-row"><span class="kv-key">{key}</span><span class="kv-val">{val_str}</span></div>'
 
 
 def panel_open(title, icon_name=None):
@@ -345,7 +358,6 @@ PANEL_CLOSE = "</div>"
 
 
 # SIDEBAR
-
 with st.sidebar:
     st.markdown(
         f'<div style="display:flex;align-items:center;gap:8px;margin-bottom:1rem;">'
@@ -381,12 +393,12 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
-# BRAND BAR
 
+# BRAND BAR
 st.markdown(
     f'<div class="brand-bar">'
     f'<div>'
-    f'<div class="brand-title">{icon("terminal")}License Plate Detection</div>'
+    f'<div class="brand-title">{icon("terminal")}PLATE-PIPELINE</div>'
     f'<div class="brand-sub">License plate detection &amp; recognition console</div>'
     f'</div>'
     f'{pill(icon("status", "currentColor") + "LIVE", "neutral")}'
@@ -398,8 +410,8 @@ tab_dashboard, tab_upload, tab_stream, tab_results = st.tabs(
     ["Dashboard", "Upload Video", "Stream Ingestion", "Results"]
 )
 
-# DASHBOARD TAB
 
+# DASHBOARD TAB
 with tab_dashboard:
     st.markdown(
         f'<h3>{icon("status")}System Status</h3>',
@@ -446,15 +458,15 @@ with tab_dashboard:
                 rows = ""
                 for key, val in status.get("components", {}).items():
                     state = str(val).lower() in ("true", "ok", "running", "healthy", "1", "up")
+                    label = key.replace("_", " ").title()
                     if isinstance(val, bool):
                         badge = pill(
                             f'{icon("check", "currentColor")}UP' if state else f'{icon("x", "currentColor")}DOWN',
                             "ok" if state else "bad",
                         )
+                        rows += f'<div class="kv-row"><span class="kv-key">{label}</span>{badge}</div>'
                     else:
-                        badge = f'<span class="kv-val">{val}</span>'
-                    label = key.replace("_", " ").title()
-                    rows += f'<div class="kv-row"><span class="kv-key">{label}</span>{badge}</div>'
+                        rows += kv_row(label, val)
                 st.markdown(
                     panel_open("Components", "layers") + rows + PANEL_CLOSE,
                     unsafe_allow_html=True,
@@ -473,9 +485,7 @@ with tab_dashboard:
             break
         time.sleep(5)
 
-
 # UPLOAD VIDEO TAB
-
 with tab_upload:
     st.markdown(
         f'<h3>{icon("upload")}Upload a Video File</h3>',
@@ -566,9 +576,8 @@ with tab_upload:
                     unsafe_allow_html=True,
                 )
 
-# ──────────────────────────────────────────────
+
 # STREAM INGESTION TAB
-# ──────────────────────────────────────────────
 with tab_stream:
     st.markdown(
         f'<h3>{icon("broadcast")}Start a New Stream</h3>',
@@ -660,9 +669,8 @@ with tab_stream:
             unsafe_allow_html=True,
         )
 
-# ──────────────────────────────────────────────
+
 # RESULTS TAB
-# ──────────────────────────────────────────────
 with tab_results:
     st.markdown(
         f'<h3>{icon("search")}Query Detection Results</h3>',
