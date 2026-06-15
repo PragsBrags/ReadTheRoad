@@ -146,7 +146,7 @@ redis:
 
 database:
   enabled: true
-  url: postgresql+psycopg://postgres:mysecretpassword@localhost:5432/appdb
+  url: postgresql+psycopg://postgres:god123great@localhost:5432/plate_pipeline
   echo: false
   create_tables: true
   pool_size: 5
