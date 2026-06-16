@@ -6,7 +6,14 @@ from typing import Any
 from sqlalchemy.orm import Session
 
 from services.database.models import FrameResult, IngestionDetails, PlateDetection, ResourceLogging
-from services.database.schema import FrameResultCreate, JobCompletedUpdate, JobFailedUpdate, JobStartedCreate, PlateDetectionCreate, ResourceLoggingCreate
+from services.database.schema import (
+    FrameResultCreate,
+    JobCompletedUpdate,
+    JobFailedUpdate,
+    JobStartedCreate,
+    PlateDetectionCreate,
+    ResourceLoggingCreate,
+)
 
 class ResultRepository:
     def create_job(self, db: Session, data: JobStartedCreate) -> IngestionDetails:
@@ -45,10 +52,18 @@ class ResultRepository:
         row.status = "failed"
 
     def save_resource_log(self, db: Session, data: ResourceLoggingCreate) -> None:
+        db.query(ResourceLogging).filter_by(job_id=data.job_id).delete(
+            synchronize_session=False
+        )
         db.add(ResourceLogging(**data.model_dump()))
 
 
     def save_resource_logs(self, db: Session, rows: list[ResourceLoggingCreate]) -> None:
+        job_ids = {row.job_id for row in rows}
+        if job_ids:
+            db.query(ResourceLogging).filter(ResourceLogging.job_id.in_(job_ids)).delete(
+                synchronize_session=False
+            )
         db.add_all(ResourceLogging(**row.model_dump()) for row in rows)
 
 
@@ -104,4 +119,3 @@ class ResultRepository:
             created_at=data.created_at,
         )
         db.add(row)
-        

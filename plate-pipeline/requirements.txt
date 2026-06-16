@@ -26,6 +26,8 @@ numpy>=1.26.0
 
 streamlit>=1.30.0
 prometheus-client>=0.21.0
+psutil>=6.0.0
+nvidia-ml-py>=12.560.30
 
 pydantic>=2.9.0
 pydantic-settings>=2.6.0
