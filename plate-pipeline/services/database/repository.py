@@ -38,7 +38,18 @@ class ResultRepository:
         
         row.inference_mode = data.inference_mode
         row.processing_mode = data.processing_mode
+        # Persist video-level metrics
+        try:
+            row.video_total_fps = data.video_total_frames
+        except Exception:
+            # backward compatibility: ignore if field absent
+            pass
+
+        row.video_width = data.video_width
+        row.video_height = data.video_height
+
         row.created_at = data.created_at
+        row.completed_at = data.completed_at
         row.frames_extracted = data.frames_extracted
         row.frames_sampled = data.frames_sampled
         row.status = "completed"

@@ -32,6 +32,7 @@ from services.config import DecoderConfig, VideoIngestionConfig
 logger = logging.getLogger(__name__)
 
 
+
 # DATA MODELS
 
 @dataclass
@@ -102,6 +103,89 @@ class FFmpegDecoder:
             logger.info(f"FFmpeg validated: {version_line}")
         except Exception as e:
             raise RuntimeError(f"FFmpeg validation failed: {e}")
+
+    def probe_video_metadata(self, source: str) -> dict:
+        """
+        Probe a video source using ffprobe (if available) and return
+        a small metadata dict with width, height, fps and nb_frames.
+
+        Returns empty dict if probing is not available or fails.
+        """
+        try:
+            import json
+            import subprocess
+
+            # try to find ffprobe next to ffmpeg or on PATH
+            ffprobe_bin = shutil.which("ffprobe")
+            if not ffprobe_bin:
+                # guess alongside configured ffmpeg
+                try:
+                    ffprobe_guess = os.path.join(os.path.dirname(self._ffmpeg_bin), "ffprobe")
+                    if os.path.exists(ffprobe_guess):
+                        ffprobe_bin = ffprobe_guess
+                except Exception:
+                    ffprobe_bin = None
+
+            if not ffprobe_bin:
+                return {}
+
+            cmd = [
+                ffprobe_bin,
+                "-v",
+                "error",
+                "-print_format",
+                "json",
+                "-show_streams",
+                "-select_streams",
+                "v:0",
+                source,
+            ]
+            result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
+            if result.returncode != 0 or not result.stdout:
+                return {}
+
+            info = json.loads(result.stdout)
+            streams = info.get("streams", [])
+            if not streams:
+                return {}
+
+            s = streams[0]
+            width = int(s.get("width") or 0)
+            height = int(s.get("height") or 0)
+
+            fps = 0.0
+            fps_str = s.get("r_frame_rate") or s.get("avg_frame_rate")
+            if fps_str and fps_str != "0/0":
+                try:
+                    if "/" in fps_str:
+                        num, den = fps_str.split("/")
+                        fps = float(num) / float(den) if float(den) != 0 else float(num)
+                    else:
+                        fps = float(fps_str)
+                except Exception:
+                    fps = 0.0
+
+            nb_frames = s.get("nb_frames")
+            if nb_frames is None:
+                # try duration-based fallback
+                duration = s.get("duration")
+                try:
+                    if duration and fps > 0:
+                        total_frames = int(round(float(duration) * fps))
+                    else:
+                        total_frames = 0
+                except Exception:
+                    total_frames = 0
+            else:
+                try:
+                    total_frames = int(nb_frames)
+                except Exception:
+                    total_frames = 0
+
+            return {"width": width, "height": height, "fps": fps, "nb_frames": total_frames}
+
+        except Exception:
+            return {}
 
     def _build_command(
         self,

@@ -215,6 +215,11 @@ class IngestionService:
                 enabled=True,
             )
             monitor.start() 
+            # Probe file metadata (best-effort)
+            try:
+                metadata = self._decoder.probe_video_metadata(str(file_path)) or {}
+            except Exception:
+                metadata = {}
 
             # 1) FFmpeg decode (MANDATORY)
             frames = self._decoder.extract_frames_sync(
@@ -291,6 +296,9 @@ class IngestionService:
                         job_id=job_id,
                         inference_mode=self._config.inference.mode.value,
                         processing_mode=processing_mode,
+                        video_total_frames=metadata.get("nb_frames", len(frames)),
+                        video_width=metadata.get("width", 0),
+                        video_height=metadata.get("height", 0),
                         frames_extracted=len(frames),
                         frames_sampled=len(sampled),
                     )
@@ -392,6 +400,12 @@ class IngestionService:
                 enabled=self._persistence is not None and self._persistence.enabled,
             )
             monitor.start()
+            # best-effort probe for stream metadata (may be empty for live sources)
+            try:
+                stream_metadata = self._decoder.probe_video_metadata(stream.source) or {}
+            except Exception:
+                stream_metadata = {}
+
             frames: list[FrameData] = []
             async for frame in self._decoder.extract_frames(
                 source=stream.source,
@@ -456,6 +470,21 @@ class IngestionService:
             total_detection_ms = sum(r.get("timings", {}).get("detection_ms", 0.0) for r in inference_results)
             total_ocr_ms = sum(r.get("timings", {}).get("ocr_ms", 0.0) for r in inference_results)
             total_llm_ms = sum(r.get("timings", {}).get("llm_ms", 0.0) for r in inference_results)
+
+            # persist completed job details
+            if self._persistence:
+                self._persistence.save_job_completed(
+                    job=JobCompletedUpdate(
+                        job_id=stream.stream_id,
+                        inference_mode=self._config.inference.mode.value,
+                        processing_mode=processing_mode,
+                        video_total_frames=stream_metadata.get("nb_frames", len(frames)),
+                        video_width=stream_metadata.get("width", 0),
+                        video_height=stream_metadata.get("height", 0),
+                        frames_extracted=len(frames),
+                        frames_sampled=len(sampled),
+                    )
+                )
 
             return IngestResponse(
                 job_id=stream.stream_id,
@@ -544,6 +573,9 @@ class IngestionService:
                         job_id=stream.stream_id,
                         inference_mode=self._config.inference.mode.value,
                         processing_mode=self._dispatcher.mode,
+                        video_total_frames=stream.frames_processed,
+                        frames_extracted=stream.frames_processed,
+                        frames_sampled=stream.frames_processed,
                     )
                 )
 
@@ -556,6 +588,9 @@ class IngestionService:
                         job_id=stream.stream_id,
                         inference_mode=self._config.inference.mode.value,
                         processing_mode=self._dispatcher.mode,
+                        video_total_frames=stream.frames_processed,
+                        frames_extracted=stream.frames_processed,
+                        frames_sampled=stream.frames_processed,
                     )
                 )
         except Exception as e:
