@@ -38,17 +38,14 @@ class ResultRepository:
         
         row.inference_mode = data.inference_mode
         row.processing_mode = data.processing_mode
-        # Persist video-level metrics
-        try:
-            row.video_total_fps = data.video_total_frames
-        except Exception:
-            # backward compatibility: ignore if field absent
-            pass
+
+        row.video_total_fps = data.video_total_frames
 
         row.video_width = data.video_width
         row.video_height = data.video_height
 
-        row.created_at = data.created_at
+        # Do not overwrite original created_at (set at insert time by DB).
+        # Only set completed_at to mark job completion time.
         row.completed_at = data.completed_at
         row.frames_extracted = data.frames_extracted
         row.frames_sampled = data.frames_sampled
@@ -58,8 +55,7 @@ class ResultRepository:
         row = db.query(IngestionDetails).filter_by(job_id=data.job_id).one_or_none()
         if row is None:
             return
-        
-        row.created_at = data.created_at
+        # Preserve original created_at; only update status on failure.
         row.status = "failed"
 
     def save_resource_log(self, db: Session, data: ResourceLoggingCreate) -> None:
@@ -83,7 +79,8 @@ class ResultRepository:
         if row is None:
             return
 
-        for key, value in data.model_dump(exclude={"job_id"}).items():
+        # Avoid overwriting `created_at` here; only apply other metrics.
+        for key, value in data.model_dump(exclude={"job_id", "created_at"}).items():
             setattr(row, key, value)
 
     def save_frame(
