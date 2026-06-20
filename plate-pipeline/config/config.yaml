@@ -74,7 +74,7 @@ inference:
       description: "Detect plate → crop → OCR (default)"
 
     yolo_ocr_llm:
-      enabled: false
+      enabled: true
       description: "YOLO+OCR with LLM correction for ambiguous chars"
 
     direct_llm:
@@ -86,10 +86,10 @@ inference:
 # ---------------------------------------------------------------------------
 model_registry:
   yolo:
-    path: ./models/plate.pt
+    path: /models/plate.pt
     confidence_threshold: 0.1
     iou_threshold: 0.1
-    device: mps # cpu | cuda | mps
+    device: cpu # cpu | cuda | mps
     imgsz: 640
     selection_policy: all # all | best
 
@@ -113,7 +113,7 @@ ocr:
 # LLM CONFIGURATION
 # ---------------------------------------------------------------------------
 llm:
-  enabled: false
+  enabled: true
   provider: ollama # openai | anthropic | ollama
   mode: gated # gated | always | disabled
   max_calls_per_job: 1
@@ -193,11 +193,11 @@ redis:
   key_prefix: plate_pipeline
 
 # ---------------------------------------------------------------------------
-# DATABSASE — LOCALHOST
+# DATABASE — DOCKER (service name: postgres)
 # ---------------------------------------------------------------------------
 database:
   enabled: true
-  url: postgresql+psycopg://postgres:god123great@localhost:5432/plate_pipeline
+  url: postgresql+psycopg2://postgres:god123great@postgres:5432/plate_pipeline
   echo: false
   create_tables: true
   pool_size: 5
@@ -209,7 +209,7 @@ database:
 aggregation:
   window_ms: 3000
   dedup_threshold: 0.85 # String similarity threshold
-  min_confidence: 0.4
+  min_confidence: 0.1
   max_results_per_window: 50
 
 # ---------------------------------------------------------------------------
