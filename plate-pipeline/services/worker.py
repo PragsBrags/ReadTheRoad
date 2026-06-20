@@ -66,6 +66,7 @@ celery_app = create_celery_app()
 _inference_router = None
 _cache_service = None
 _metrics = None
+_persistence_service = None
 
 
 def _get_inference_router():
@@ -100,6 +101,17 @@ def _get_metrics():
         from services.monitoring import MetricsCollector
         _metrics = MetricsCollector()
     return _metrics
+
+
+def _get_persistence_service():
+    """Lazy-load database persistence service."""
+    global _persistence_service
+    if _persistence_service is None:
+        from services.database import ResultPersistenceService
+        from services.config import load_config
+        config = load_config()
+        _persistence_service = ResultPersistenceService(config.database)
+    return _persistence_service
 
 
 # CELERY SIGNALS
@@ -198,6 +210,37 @@ def process_frame(self, frame_payload: dict[str, Any]) -> dict[str, Any]:
                 mode=result.get("inference_mode", "unknown"),
             )
             metrics.increment_frames_processed(1)
+
+        # --- Database persistence ---
+        persistence = _get_persistence_service()
+        if persistence and persistence.enabled:
+            from services.database.schema import FrameResultCreate, PlateDetectionCreate
+            plates = [
+                PlateDetectionCreate(
+                    job_id=job_id,
+                    frame_id=frame_id,
+                    plate_text=plate.get("text"),
+                    vehicle_class=plate.get("vehicle_class"),
+                    confidence=plate.get("confidence", 0.0),
+                    raw_plate=plate,
+                )
+                for plate in result.get("plates", [])
+            ]
+            persistence.save_frame_result(
+                job=FrameResultCreate(
+                    job_id=job_id,
+                    frame_id=frame_id,
+                    source=frame.source,
+                    timestamp_ms=frame.timestamp_ms,
+                    inference_mode=result.get("inference_mode"),
+                    plate_count=len(plates),
+                    processing_time_ms=result.get("processing_time_ms", 0.0),
+                    detection_time_ms=result.get("timings", {}).get("detection_ms", 0.0),
+                    ocr_time_ms=result.get("timings", {}).get("ocr_ms", 0.0),
+                    llm_time_ms=result.get("timings", {}).get("llm_ms", 0.0),
+                ),
+                plates=plates,
+            )
 
         logger.info(
             f"[{frame_id}] Processed in {result['processing_time_ms']:.1f}ms "
