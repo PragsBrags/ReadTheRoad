@@ -192,11 +192,11 @@ redis:
   key_prefix: plate_pipeline
 
 # ---------------------------------------------------------------------------
-# DATABSASE — LOCALHOST
+# DATABASE — LOCALHOST
 # ---------------------------------------------------------------------------
 database:
   enabled: true
-  url: postgresql+psycopg://postgres:god123great@localhost:5432/plate_pipeline
+  url: postgresql+psycopg2://postgres:god123great@localhost:5432/plate_pipeline
   echo: false
   create_tables: true
   pool_size: 5

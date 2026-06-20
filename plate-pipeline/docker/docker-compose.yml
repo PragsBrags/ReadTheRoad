@@ -38,6 +38,8 @@ services:
       - YOLO_CONFIG_DIR=/tmp/Ultralytics
       - FONTCONFIG_CACHE=/tmp/fontconfig
     depends_on:
+      postgres:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       redis:
@@ -67,6 +69,8 @@ services:
       - YOLO_CONFIG_DIR=/tmp/Ultralytics
       - FONTCONFIG_CACHE=/tmp/fontconfig
     depends_on:
+      postgres:
+        condition: service_healthy
       rabbitmq:
         condition: service_healthy
       redis:
@@ -79,6 +83,27 @@ services:
       resources:
         limits:
           memory: 4G
+
+  # POSTGRESQL
+  postgres:
+    image: postgres:15-alpine
+    container_name: plate-postgres
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: god123great
+      POSTGRES_DB: plate_pipeline
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - plate-net
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d plate_pipeline"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
 
   # RABBITMQ
   rabbitmq:
@@ -164,6 +189,7 @@ volumes:
   redis-data:
   prometheus-data:
   grafana-data:
+  postgres-data:
 
 # NETWORKS
 networks:
