@@ -41,6 +41,7 @@ case "$ACTION" in
         echo "  Services:"
         echo "    API          : http://localhost:8000"
         echo "    API Docs     : http://localhost:8000/docs"
+        echo "    PostgreSQL   : localhost:5432 (postgres/god123great)"
         echo "    RabbitMQ     : http://localhost:15672 (guest/guest)"
         echo "    Prometheus   : http://localhost:9090"
         echo "    Grafana      : http://localhost:3000 (admin/admin)"

@@ -8,6 +8,8 @@
 #   - Python venv with deps: pip install -r requirements.txt
 #   - FFmpeg installed: brew install ffmpeg
 #   - YOLO model at ./models/plate.pt
+#   - PostgreSQL running: brew services start postgresql
+#     (creates database 'plate_pipeline' with user 'postgres' password 'god123great')
 #
 # Optional (for caching/dedup):
 #   - Redis running: brew services start redis
@@ -49,6 +51,13 @@ echo ""
 if ! command -v ffmpeg &> /dev/null; then
     echo "ERROR: FFmpeg not found. Install with: brew install ffmpeg"
     exit 1
+fi
+
+# Check PostgreSQL (for database persistence)
+if ! command -v psql &> /dev/null; then
+    echo "WARNING: PostgreSQL client not found. Install with: brew install postgresql"
+    echo "         Database persistence will not work without it."
+    echo ""
 fi
 
 # Check YOLO model
