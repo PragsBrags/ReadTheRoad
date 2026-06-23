@@ -40,6 +40,12 @@ class PlateDetectionCreate(BaseModel):
     job_id: str
     frame_result_id: int | None = None
     frame_id: str | None = None
+    frame_index: int | None = None
+
+    bbox_x1: float | None = None
+    bbox_y1: float | None = None
+    bbox_x2: float | None = None
+    bbox_y2: float | None = None
 
     plate_text: str | None = None
     vehicle_class: str | None = None
@@ -53,6 +59,7 @@ class PlateDetectionCreate(BaseModel):
 class FrameResultCreate(BaseModel):
     job_id: str
     frame_id: str
+    frame_index: int | None = None
     source: str
     timestamp_ms: float = 0.0
 

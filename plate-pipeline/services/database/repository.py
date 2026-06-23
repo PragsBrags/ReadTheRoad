@@ -92,6 +92,7 @@ class ResultRepository:
         row = FrameResult(
             job_id=data.job_id,
             frame_id=data.frame_id,
+            frame_index=data.frame_index,
             source=data.source,
             timestamp_ms=data.timestamp_ms,
             inference_mode=data.inference_mode,
@@ -111,15 +112,36 @@ class ResultRepository:
                     update={
                         "frame_result_id": row.id,
                         "frame_id": data.frame_id,
+                        "frame_index": data.frame_index,
                     }
                 ),
             )
 
     def save_plate(self, db: Session, data: PlateDetectionCreate) -> None:
+        # Determine bbox values: prefer explicit fields, fallback to raw_plate["bbox"] if present
+        bbox_x1 = bbox_y1 = bbox_x2 = bbox_y2 = 0.0
+        if getattr(data, "bbox_x1", None) is not None and getattr(data, "bbox_y1", None) is not None and getattr(data, "bbox_x2", None) is not None and getattr(data, "bbox_y2", None) is not None:
+            bbox_x1 = float(data.bbox_x1)
+            bbox_y1 = float(data.bbox_y1)
+            bbox_x2 = float(data.bbox_x2)
+            bbox_y2 = float(data.bbox_y2)
+        else:
+            rp = data.raw_plate or {}
+            bbox = None
+            if isinstance(rp, dict):
+                bbox = rp.get("bbox") or rp.get("bounding_box") or rp.get("bbox_xyxy")
+            if isinstance(bbox, (list, tuple)) and len(bbox) >= 4:
+                bbox_x1, bbox_y1, bbox_x2, bbox_y2 = map(float, bbox[:4])
+
         row = PlateDetection(
             job_id=data.job_id,
             frame_result_id=data.frame_result_id,
             frame_id=data.frame_id,
+            frame_index=data.frame_index,
+            bbox_x1=bbox_x1,
+            bbox_x2=bbox_x2,
+            bbox_y1=bbox_y1,
+            bbox_y2=bbox_y2,
             plate_text=data.plate_text,
             vehicle_class=data.vehicle_class,
             confidence=data.confidence,

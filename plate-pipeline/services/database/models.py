@@ -37,6 +37,7 @@ class FrameResult(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
     job_id: Mapped[str] = mapped_column(String(64), ForeignKey("ingestion_details.job_id"), index=True)
     frame_id: Mapped[str] = mapped_column(String(64), index=True)
+    frame_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
     source: Mapped[str] = mapped_column(Text)
     timestamp_ms: Mapped[float] = mapped_column(Float, default=0.0)
 
@@ -58,6 +59,7 @@ class PlateDetection(Base):
     job_id: Mapped[str] = mapped_column(String(64), index=True)
     frame_result_id: Mapped[int | None] = mapped_column(ForeignKey("frame_results.id"), nullable=True)
     frame_id: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    frame_index: Mapped[int | None] = mapped_column(Integer, nullable=True)
 
     bbox_x1: Mapped[float] = mapped_column(Float, default=0.0)
     bbox_x2: Mapped[float] = mapped_column(Float, default=0.0)

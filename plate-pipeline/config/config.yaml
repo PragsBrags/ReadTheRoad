@@ -20,7 +20,7 @@ decoder:
   engine: ffmpeg # ONLY ffmpeg allowed
   ffmpeg:
     binary_path: ffmpeg
-    frame_filter: "eq(pict_type,P)"
+    frame_filter: "1"
     vsync: vfr
     output_format: jpg
     output_quality: 2 # JPEG quality (2=high, 31=low)
@@ -45,7 +45,7 @@ debug:
 # FRAME SAMPLER
 # ---------------------------------------------------------------------------
 frame_sampler:
-  strategy: motion_sharpness # fixed_fps | motion | hybrid | nyquist | motion_sharpness
+  strategy: hybrid # fixed_fps | motion | hybrid | nyquist | motion_sharpness
   fixed_fps: 2
   motion_threshold: 0.2 # SSIM threshold for motion detection
   nyquist_event_frequency: 1.0 # Expected events per second
@@ -86,10 +86,10 @@ inference:
 # ---------------------------------------------------------------------------
 model_registry:
   yolo:
-    path: ./models/plate.pt
+    path: C:/Users/herog/OneDrive/Documents/Kcraft/ReadTheRoad/plate-pipeline/models/plate.pt
     confidence_threshold: 0.1
     iou_threshold: 0.1
-    device: mps # cpu | cuda | mps
+    device: cuda # cpu | cuda | mps
     imgsz: 640
     selection_policy: all # all | best
 

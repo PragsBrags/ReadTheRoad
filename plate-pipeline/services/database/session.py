@@ -1,6 +1,6 @@
 from contextlib import contextmanager
 
-from sqlalchemy import create_engine
+from sqlalchemy import create_engine, inspect, text
 from sqlalchemy.orm import Session, sessionmaker
 
 from services.config import DatabaseConfig
@@ -27,7 +27,33 @@ class DatabaseSessionManager:
     def create_tables(self) -> None:
         if self.engine is not None and self.create_tables_startup:
             Base.metadata.create_all(self.engine)
-    
+            self._ensure_schema_columns()
+
+    def _ensure_schema_columns(self) -> None:
+        if self.engine is None:
+            return
+
+        inspector = inspect(self.engine)
+        required_columns = {
+            "frame_results": {"frame_index": "INTEGER"},
+            "plate_detections": {"frame_index": "INTEGER"},
+        }
+
+        with self.engine.begin() as connection:
+            for table_name, columns in required_columns.items():
+                if not inspector.has_table(table_name):
+                    continue
+
+                existing = {column["name"] for column in inspector.get_columns(table_name)}
+                for column_name, column_type in columns.items():
+                    if column_name not in existing:
+                        connection.execute(
+                            text(
+                                f"ALTER TABLE {table_name} "
+                                f"ADD COLUMN {column_name} {column_type}"
+                            )
+                        )
+
     @contextmanager
     def session(self):
         if self.session_factory is None:
