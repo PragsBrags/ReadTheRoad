@@ -102,10 +102,21 @@ class TaskDispatcher:
         Returns:
             Result dict in local mode, None in distributed mode.
         """
-        payload = serialize_frame(frame, job_id)
+        use_redis = self._mode == "distributed" and self._celery_app and self._cache and self._cache.is_connected()
+        payload = serialize_frame(frame, job_id, include_bytes=not use_redis)
 
         if self._mode == "distributed" and self._celery_app:
             try:
+                if use_redis:
+                    redis_key = f"frame:bytes:{frame.frame_id}"
+                    try:
+                        self._cache._client.setex(redis_key, 300, frame.frame_bytes)
+                        payload["redis_key"] = redis_key
+                    except Exception as redis_err:
+                        logger.warning(f"Failed to store frame bytes in Redis: {redis_err} — falling back to base64 payload")
+                        import base64
+                        payload["frame_b64"] = base64.b64encode(frame.frame_bytes).decode("utf-8")
+
                 self._celery_app.send_task(
                     "plate_pipeline.process_frame",
                     args=[payload],

@@ -24,7 +24,7 @@ logger = logging.getLogger(__name__)
 
 # FRAME SERIALIZATION
 
-def serialize_frame(frame: FrameData, job_id: str = "") -> dict[str, Any]:
+def serialize_frame(frame: FrameData, job_id: str = "", include_bytes: bool = True) -> dict[str, Any]:
     """
     Serialize a FrameData object for queue transport.
 
@@ -34,7 +34,7 @@ def serialize_frame(frame: FrameData, job_id: str = "") -> dict[str, Any]:
         "frame_id": frame.frame_id,
         "job_id": job_id,
         "source": frame.source,
-        "frame_b64": base64.b64encode(frame.frame_bytes).decode("utf-8"),
+        "frame_b64": base64.b64encode(frame.frame_bytes).decode("utf-8") if include_bytes else "",
         "frame_index": frame.frame_index,
         "timestamp_ms": frame.timestamp_ms,
         "content_hash": frame.content_hash,
