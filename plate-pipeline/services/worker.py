@@ -188,6 +188,7 @@ def process_frame(self, frame_payload: dict[str, Any]) -> dict[str, Any]:
 
         # --- Enrich result ---
         result["frame_id"] = frame_id
+        result["frame_index"] = frame.frame_index
         result["job_id"] = job_id
         result["processed_at"] = time.time()
         result["processing_time_ms"] = (time.time() - start) * 1000

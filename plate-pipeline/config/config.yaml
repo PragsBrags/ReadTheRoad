@@ -20,7 +20,7 @@ decoder:
   engine: ffmpeg # ONLY ffmpeg allowed
   ffmpeg:
     binary_path: ffmpeg
-    frame_filter: "eq(pict_type,P)"
+    frame_filter: "1"
     vsync: vfr
     output_format: jpg
     output_quality: 2 # JPEG quality (2=high, 31=low)
@@ -45,7 +45,7 @@ debug:
 # FRAME SAMPLER
 # ---------------------------------------------------------------------------
 frame_sampler:
-  strategy: motion_sharpness # fixed_fps | motion | hybrid | nyquist | motion_sharpness
+  strategy: hybrid # fixed_fps | motion | hybrid | nyquist | motion_sharpness
   fixed_fps: 2
   motion_threshold: 0.2 # SSIM threshold for motion detection
   nyquist_event_frequency: 1.0 # Expected events per second
@@ -74,7 +74,7 @@ inference:
       description: "Detect plate → crop → OCR (default)"
 
     yolo_ocr_llm:
-      enabled: true
+      enabled: false
       description: "YOLO+OCR with LLM correction for ambiguous chars"
 
     direct_llm:
@@ -86,10 +86,10 @@ inference:
 # ---------------------------------------------------------------------------
 model_registry:
   yolo:
-    path: /models/plate.pt
+    path: C:/Users/herog/OneDrive/Documents/Kcraft/ReadTheRoad/plate-pipeline/models/plate.pt
     confidence_threshold: 0.1
     iou_threshold: 0.1
-    device: cpu # cpu | cuda | mps
+    device: cuda # cpu | cuda | mps
     imgsz: 640
     selection_policy: all # all | best
 
@@ -113,7 +113,7 @@ ocr:
 # LLM CONFIGURATION
 # ---------------------------------------------------------------------------
 llm:
-  enabled: true
+  enabled: false
   provider: ollama # openai | anthropic | ollama
   mode: gated # gated | always | disabled
   max_calls_per_job: 1
@@ -193,7 +193,7 @@ redis:
   key_prefix: plate_pipeline
 
 # ---------------------------------------------------------------------------
-# DATABASE — DOCKER (service name: postgres)
+# DATABSASE — LOCALHOST
 # ---------------------------------------------------------------------------
 database:
   enabled: true
@@ -209,7 +209,7 @@ database:
 aggregation:
   window_ms: 3000
   dedup_threshold: 0.85 # String similarity threshold
-  min_confidence: 0.1
+  min_confidence: 0.4
   max_results_per_window: 50
 
 # ---------------------------------------------------------------------------

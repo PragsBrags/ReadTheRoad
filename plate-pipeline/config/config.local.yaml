@@ -56,7 +56,7 @@ decoder:
 # FRAME SAMPLER
 # ---------------------------------------------------------------------------
 frame_sampler:
-  strategy: nyquist # fixed_fps | motion | hybrid | nyquist | motion_sharpness
+  strategy: motion_sharpness # fixed_fps | motion | hybrid | nyquist | motion_sharpness
   fixed_fps: 2
   motion_threshold: 0.2
   nyquist_event_frequency: 1.0
@@ -96,7 +96,7 @@ model_registry:
     path: ./models/plate.pt # Local path — put your .pt here
     confidence_threshold: 0.1
     iou_threshold: 0.1
-    device: cpu # cpu | cuda | mps
+    device: cuda # cpu | cuda | mps
     imgsz: 640
     selection_policy: all # all | best
 
@@ -120,7 +120,7 @@ ocr:
 # LLM CONFIGURATION
 # ---------------------------------------------------------------------------
 llm:
-  enabled: true
+  enabled: false
   provider: ollama
   mode: gated
   max_calls_per_job: 1
@@ -184,7 +184,7 @@ workers:
 # REDIS — LOCALHOST
 # ---------------------------------------------------------------------------
 redis:
-  enabled: true
+  enabled: false
   url: redis://localhost:6379/0
   ttl_seconds: 300
   deduplication: true
@@ -192,7 +192,7 @@ redis:
   key_prefix: plate_pipeline
 
 # ---------------------------------------------------------------------------
-# DATABASE — LOCALHOST
+# DATABSASE — LOCALHOST
 # ---------------------------------------------------------------------------
 database:
   enabled: true

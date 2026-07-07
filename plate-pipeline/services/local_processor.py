@@ -141,26 +141,40 @@ class LocalProcessor:
 
             # Enrich result
             result["frame_id"] = frame_id
+            result["frame_index"] = frame.frame_index
             result["job_id"] = job_id
             result["processed_at"] = time.time()
             result["processing_time_ms"] = (time.time() - start) * 1000
 
-            plates = [
-            PlateDetectionCreate(
-                job_id=job_id,
-                frame_id=frame_id,
-                plate_text=plate.get("text"),
-                vehicle_class=plate.get("vehicle_class"),
-                confidence=plate.get("confidence", 0.0),
-                raw_plate=plate,
-            )
-            for plate in result.get("plates", [])
-            ]
+            plates = []
+            for plate in result.get("plates", []):
+                bbox = plate.get("bbox")
+                if isinstance(bbox, (list, tuple)) and len(bbox) >= 4:
+                    bx1, by1, bx2, by2 = map(float, bbox[:4])
+                else:
+                    bx1 = by1 = bx2 = by2 = None
+
+                plates.append(
+                    PlateDetectionCreate(
+                        job_id=job_id,
+                        frame_id=frame_id,
+                        frame_index=frame.frame_index,
+                        plate_text=plate.get("text"),
+                        vehicle_class=plate.get("vehicle_class"),
+                        confidence=plate.get("confidence", 0.0),
+                        raw_plate=plate,
+                        bbox_x1=bx1,
+                        bbox_y1=by1,
+                        bbox_x2=bx2,
+                        bbox_y2=by2,
+                    )
+                )
 
             persistence.save_frame_result(
                 job=FrameResultCreate(
                     job_id=job_id,
                     frame_id=frame_id,
+                    frame_index=frame.frame_index,
                     source=frame.source,
                     timestamp_ms=frame.timestamp_ms,
                     inference_mode=result.get("inference_mode"),
