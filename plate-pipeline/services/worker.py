@@ -171,6 +171,19 @@ def process_frame(self, frame_payload: dict[str, Any]) -> dict[str, Any]:
         from services.queue import deserialize_frame
         frame = deserialize_frame(frame_payload)
 
+        # Retrieve bytes from Redis if redis_key is specified
+        redis_key = frame_payload.get("redis_key")
+        if redis_key and cache and cache.is_connected():
+            try:
+                frame_bytes = cache._client.get(redis_key)
+                if frame_bytes:
+                    frame.frame_bytes = frame_bytes
+                    cache._client.delete(redis_key)
+                else:
+                    logger.error(f"Frame bytes not found in Redis for key: {redis_key}")
+            except Exception as redis_err:
+                logger.error(f"Failed to retrieve frame bytes from Redis: {redis_err}")
+
         # --- Run inference ---
         result = router.process(frame)
 
